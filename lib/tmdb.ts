@@ -1,6 +1,5 @@
-"use server";
-
 import type { MovieResult } from "@/lib/schemas";
+import { tmdbLimiter, checkLimit } from "@/lib/rate-limit";
 
 // ── Genre ID maps ─────────────────────────────────────────────────────────────
 const MOVIE_GENRE_MAP: Record<string, number> = {
@@ -74,6 +73,11 @@ const KNOWN_GENRES = [
   "adventure", "family", "history", "music", "war", "western",
 ];
 
+export function isKnownGenre(name: string): boolean {
+  const lower = name.toLowerCase().trim();
+  return KNOWN_GENRES.includes(lower) || lower in MOVIE_GENRE_MAP || lower in TV_GENRE_MAP;
+}
+
 export type InputClass = "genre" | "exact_name" | "vague";
 
 export async function classifyInput(input: string): Promise<InputClass> {
@@ -110,6 +114,16 @@ function tmdbUrl(path: string, params: Record<string, string> = {}): string {
   return `${TMDB_BASE}${path}?${sp.toString()}`;
 }
 
+// ── Rate-limited TMDB fetch wrapper ───────────────────────────────────────────
+async function tmdbFetch(url: string): Promise<Record<string, unknown>> {
+  const rl = await checkLimit(tmdbLimiter);
+  if (!rl.allowed) {
+    throw new Error(`TMDB rate limited — retry in ${rl.retryAfter}s`);
+  }
+  const res = await fetch(url);
+  return res.json();
+}
+
 function formatItem(r: Record<string, unknown>, mediaType: "movie" | "tv" = "movie"): MovieResult {
   const title = (r.title ?? r.name ?? "Unknown") as string;
   const year = ((r.release_date ?? r.first_air_date ?? "") as string).slice(0, 4);
@@ -133,28 +147,38 @@ function formatItem(r: Record<string, unknown>, mediaType: "movie" | "tv" = "mov
 export async function fetchByName(
   name: string,
   type: "movie" | "tv_series" = "movie",
-): Promise<{ genres: string[]; results: MovieResult[] } | null> {
+): Promise<{ entity: MovieResult | null; genres: string[]; results: MovieResult[] } | null> {
   const media = type === "tv_series" ? "tv" : "movie";
 
-  const searchRes = await fetch(
+  const searchRes = await tmdbFetch(
     tmdbUrl(`/search/${media}`, { query: name }),
-  ).then((r) => r.json());
+  ) as { results?: Record<string, unknown>[] };
 
   const item = searchRes.results?.[0];
   if (!item) return null;
 
   const [detail, similar] = await Promise.all([
-    fetch(tmdbUrl(`/${media}/${item.id}`)).then((r) => r.json()),
-    fetch(tmdbUrl(`/${media}/${item.id}/similar`)).then((r) => r.json()),
+    tmdbFetch(tmdbUrl(`/${media}/${item.id as number}`)) as Promise<Record<string, unknown>>,
+    tmdbFetch(tmdbUrl(`/${media}/${item.id as number}/similar`)) as Promise<{ results?: Record<string, unknown>[] }>,
   ]);
 
-  const genres: string[] = detail.genres?.map((g: { name: string }) => g.name) ?? [];
+  const genres: string[] = ((detail.genres ?? []) as { name: string }[]).map((g) => g.name);
 
-  const results: MovieResult[] = (similar.results ?? [])
+  // Build the matched entity card (the movie the user searched for)
+  const entityCard: MovieResult = {
+    title: (detail.title ?? detail.name ?? "Unknown") as string,
+    year: ((detail.release_date ?? detail.first_air_date ?? "") as string).slice(0, 4),
+    rating: typeof detail.vote_average === "number" ? detail.vote_average.toFixed(1) : "N/A",
+    poster: detail.poster_path ? `https://image.tmdb.org/t/p/w300${detail.poster_path}` : null,
+    genres,
+    description: (detail.overview ?? "") as string,
+  };
+
+  const results: MovieResult[] = ((similar.results ?? []) as Record<string, unknown>[])
     .slice(0, 10)
-    .map((r: Record<string, unknown>) => formatItem(r, media));
+    .map((r) => formatItem(r, media));
 
-  return { genres, results: shuffle(results) };
+  return { entity: entityCard, genres, results: shuffle(results) };
 }
 
 export async function fetchByGenre(
@@ -167,14 +191,14 @@ export async function fetchByGenre(
   const genreId = genreMap[lower];
   if (!genreId) return null;
 
-  const res = await fetch(
+  const res = await tmdbFetch(
     tmdbUrl(`/discover/${media}`, {
       with_genres: String(genreId),
       sort_by: "popularity.desc",
     }),
-  ).then((r) => r.json());
+  ) as { results?: Record<string, unknown>[] };
 
-  const results: MovieResult[] = (res.results ?? [])
+  const results: MovieResult[] = ((res.results ?? []) as Record<string, unknown>[])
     .slice(0, 10)
     .map((r: Record<string, unknown>) => formatItem(r, media));
 
@@ -200,15 +224,15 @@ export async function fetchByGenres(
   // Random page 1-5 for variety
   const page = Math.floor(Math.random() * 5) + 1;
 
-  const res = await fetch(
+  const res = await tmdbFetch(
     tmdbUrl(`/discover/${media}`, {
       with_genres: ids.join(","),
       sort_by: "popularity.desc",
       page: String(page),
     }),
-  ).then((r) => r.json());
+  ) as { results?: Record<string, unknown>[] };
 
-  const results: MovieResult[] = (res.results ?? [])
+  const results: MovieResult[] = ((res.results ?? []) as Record<string, unknown>[])
     .slice(0, 10)
     .map((r: Record<string, unknown>) => formatItem(r, media));
 

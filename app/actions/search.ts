@@ -9,16 +9,22 @@ import {
   fetchByName,
   fetchByGenre,
   fetchByGenres,
+  isKnownGenre,
 } from "@/lib/tmdb";
 import type { MovieResult } from "@/lib/schemas";
+import {
+  aiSearchLimiter,
+  identifyEntityLimiter,
+  checkLimit,
+} from "@/lib/rate-limit";
 
-// ── Throttle state (per serverless instance) ──────────────────────────────────
-let lastCallTs = 0;
-let isRunning = false;
-const THROTTLE_MS = 2000;
-
-// ── Step 2: AI identifies vague / exact-name input via Google Search ─────────
+// ── AI identifies vague input via Google Search ──────────────────────────────
 async function identifyEntity(userInput: string) {
+  const rl = await checkLimit(identifyEntityLimiter);
+  if (!rl.allowed) {
+    throw new Error(`AI identify rate limited — retry in ${rl.retryAfter}s`);
+  }
+
   const { text } = await generateText({
     model: google("gemini-2.5-flash"),
     prompt: `The user typed: "${userInput}"
@@ -44,19 +50,27 @@ export async function aiSearch(query: string, tags: string[] = []) {
     return { ok: false as const, error: "Query cannot be empty." };
   }
 
-  const now = Date.now();
-
-  if (isRunning) {
-    return { ok: false as const, error: "Search is already in progress. Please wait." };
+  // Upstash rate limit check
+  const rl = await checkLimit(aiSearchLimiter);
+  if (!rl.allowed) {
+    return { ok: false as const, error: `Rate limited — retry in ${rl.retryAfter}s` };
   }
 
-  if (now - lastCallTs < THROTTLE_MS) {
-    const retryIn = Math.ceil((THROTTLE_MS - (now - lastCallTs)) / 1000);
-    return { ok: false as const, error: `Throttled — try again in ${retryIn}s` };
-  }
+  // Pre-resolve entity for vague queries before starting the stream
+  let entityName: string | null = null;
+  let resolvedName: string | null = null;
+  let resolvedMediaType: "movie" | "tv_series" = "movie";
+  let inputClass: "genre" | "exact_name" | "vague" | null = null;
 
-  isRunning = true;
-  lastCallTs = now;
+  if (tags.length === 0 && trimmed) {
+    inputClass = await classifyInput(trimmed);
+    if (inputClass === "vague") {
+      const entity = await identifyEntity(trimmed);
+      resolvedName = await sanitize(entity.canonical_name);
+      resolvedMediaType = entity.type;
+      entityName = entity.canonical_name;
+    }
+  }
 
   const movieStream = createStreamableValue<string>("");
 
@@ -64,38 +78,46 @@ export async function aiSearch(query: string, tags: string[] = []) {
     try {
       let movies: MovieResult[] = [];
 
-      // Tags take priority: if tags are present, use multi-genre fetch
       if (tags.length > 0) {
-        const data = await fetchByGenres(tags);
-        if (data) {
-          movies = data.results;
-        }
-      } else {
-        const inputClass = await classifyInput(trimmed);
+        // Split tags into genre tags and entity-name tags
+        const genreTags = tags.filter((t) => isKnownGenre(t));
+        const nameTags = tags.filter((t) => !isKnownGenre(t));
 
+        // Fetch similar movies for entity-name tags
+        for (const name of nameTags) {
+          const data = await fetchByName(name);
+          if (data) {
+            movies.push(...(data.entity ? [data.entity, ...data.results] : data.results));
+          }
+        }
+
+        // Fetch by genre combination
+        if (genreTags.length > 0) {
+          const data = await fetchByGenres(genreTags);
+          if (data) {
+            movies.push(...data.results);
+          }
+        }
+      } else if (trimmed) {
         if (inputClass === "genre") {
           const data = await fetchByGenre(trimmed);
           if (data) {
             movies = data.results;
           }
-        } else {
-          let name = trimmed;
-          let mediaType: "movie" | "tv_series" = "movie";
-
-          if (inputClass === "vague") {
-            const entity = await identifyEntity(trimmed);
-            name = await sanitize(entity.canonical_name);
-            mediaType = entity.type;
-          }
-
-          const data = await fetchByName(name, mediaType);
+        } else if (inputClass === "exact_name") {
+          const data = await fetchByName(trimmed);
           if (data) {
-            movies = data.results;
+            movies = data.entity ? [data.entity, ...data.results] : data.results;
+          }
+        } else if (inputClass === "vague" && resolvedName) {
+          const data = await fetchByName(resolvedName, resolvedMediaType);
+          if (data) {
+            movies = data.entity ? [data.entity, ...data.results] : data.results;
           }
         }
       }
 
-      // Stream movies one by one so cards appear progressively
+      // Stream movies one by one
       for (const movie of movies) {
         movieStream.update(JSON.stringify(movie));
         await new Promise((r) => setTimeout(r, 100));
@@ -103,14 +125,13 @@ export async function aiSearch(query: string, tags: string[] = []) {
       movieStream.done();
     } catch {
       movieStream.done();
-    } finally {
-      isRunning = false;
     }
   })();
 
   return {
     ok: true as const,
     query: trimmed,
+    entityName,
     movieStream: movieStream.value,
   };
 }

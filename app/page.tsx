@@ -14,8 +14,7 @@ export default function Home() {
   const [tags, setTags] = useState<string[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [aiMovies, setAiMovies] = useState<MovieResult[]>([]);
-  // Client-side rate limit: store timestamps of the last N requests
-  const requestTimestamps = useRef<number[]>([]);
+  const skipAutoSearch = useRef(false);
 
   function addTag(raw: string) {
     const t = normalizeSearch(raw);
@@ -34,14 +33,6 @@ export default function Home() {
 
   // AI search via server action — streams movie cards as they arrive
   const handleGoogleSearch = useCallback(async (q: string) => {
-    // Client-side rate limit: max 5 requests per minute
-    const now = Date.now();
-    requestTimestamps.current = requestTimestamps.current.filter((ts) => now - ts < 60_000);
-    if (requestTimestamps.current.length >= 5) {
-      return;
-    }
-    requestTimestamps.current.push(now);
-
     setIsSearching(true);
     setAiMovies([]);
 
@@ -49,6 +40,13 @@ export default function Home() {
       const response = await aiSearch(q, tags);
       if (!response.ok) {
         return;
+      }
+
+      // If AI resolved a vague query to an entity name, add it as a tag
+      if (response.entityName) {
+        skipAutoSearch.current = true;
+        addTag(response.entityName);
+        setQuery("");
       }
 
       if (!response.movieStream) return;
@@ -66,6 +64,10 @@ export default function Home() {
 
   // Auto-search when tags change
   useEffect(() => {
+    if (skipAutoSearch.current) {
+      skipAutoSearch.current = false;
+      return;
+    }
     if (tags.length > 0) {
       handleGoogleSearch(query);
     }

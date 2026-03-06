@@ -30,8 +30,7 @@ export default function SearchBox({
       e.preventDefault();
       const v = query.trim();
       if (!v) return;
-      addTag(v);
-      setQuery("");
+      onGoogleSearch(v);
     }
   }
 
