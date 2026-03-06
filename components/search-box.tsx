@@ -28,11 +28,8 @@ export default function SearchBox({
       e.preventDefault();
       const v = query.trim();
       if (!v) return;
+      // Skip the debounce — fire immediately
       onLocalSearch(v);
-      // also add tokens as tags for filtering
-      const tokens = v.split(/[^a-zA-Z0-9]+/).map((t) => t.trim()).filter(Boolean);
-      tokens.forEach((t) => addTag(t));
-      setQuery("");
     }
   }
 
@@ -74,12 +71,7 @@ export default function SearchBox({
           transition={{ duration: 0.2 }}
         >
           <button
-            onClick={() => {
-              onLocalSearch(query);
-              const tokens = query.trim().split(/[^a-zA-Z0-9]+/).map((t) => t.trim()).filter(Boolean);
-              tokens.forEach((t) => addTag(t));
-              setQuery("");
-            }}
+            onClick={() => onLocalSearch(query)}
             className="flex h-9 items-center gap-1.5 rounded-lg bg-white/8 px-4 text-sm font-medium text-white/80 transition-colors hover:bg-white/15 hover:text-white"
           >
             <Search className="h-3.5 w-3.5" />

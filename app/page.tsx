@@ -7,11 +7,14 @@ import MovieList from "@/components/movie-list";
 import SearchBox from "@/components/search-box";
 import { MOVIES } from "@/lib/movies";
 import { normalizeSearch, tokenizeSearch } from "@/lib/utils";
+import { useDebounce } from "@/lib/hooks";
 import { aiSearch } from "@/app/actions/search";
 
 export default function Home() {
   const [query, setQuery] = useState("");
   const [tags, setTags] = useState<string[]>([]);
+  // 300 ms debounce — prevents a DB hit on every keystroke
+  const debouncedQuery = useDebounce(query, 300);
 
   function addTag(raw: string) {
     const t = normalizeSearch(raw);
@@ -39,8 +42,8 @@ export default function Home() {
   }, []);
 
   const filtered = useMemo(() => {
-    const normQuery = normalizeSearch(query);
-    const tokens = tokenizeSearch(query);
+    const normQuery = normalizeSearch(debouncedQuery);
+    const tokens = tokenizeSearch(debouncedQuery);
 
     // start from MOVIES, but first apply tag filters if any
     let candidates = MOVIES;
@@ -82,7 +85,7 @@ export default function Home() {
 
       return false;
     });
-  }, [query, tags]);
+  }, [debouncedQuery, tags]);
 
   return (
     <div className="flex min-h-screen flex-col items-center bg-netflix-dark">
