@@ -12,6 +12,7 @@ export default function SearchBox({
   removeTag,
   onLocalSearch,
   onGoogleSearch,
+  isSearching,
 }: {
   query: string;
   setQuery: (q: string) => void;
@@ -20,6 +21,7 @@ export default function SearchBox({
   removeTag: (t: string) => void;
   onLocalSearch: (q: string) => void;
   onGoogleSearch: (q: string) => void;
+  isSearching: boolean;
 }) {
   const isFocused = query.length > 0 || tags.length > 0;
 
@@ -28,8 +30,8 @@ export default function SearchBox({
       e.preventDefault();
       const v = query.trim();
       if (!v) return;
-      // Skip the debounce — fire immediately
-      onLocalSearch(v);
+      addTag(v);
+      setQuery("");
     }
   }
 
@@ -62,8 +64,8 @@ export default function SearchBox({
         />
       </div>
 
-      {/* Search buttons — Google-style below the bar */}
-      {query.length > 0 && (
+      {/* Search buttons — show when typing or tags exist */}
+      {(query.length > 0 || tags.length > 0) && (
         <motion.div
           className="mt-3 flex justify-center gap-3"
           initial={{ opacity: 0, y: -8 }}
@@ -78,11 +80,16 @@ export default function SearchBox({
             Search
           </button>
           <button
-            onClick={() => onGoogleSearch(query)}
-            className="flex h-9 items-center gap-1.5 rounded-lg bg-netflix-red/90 px-4 text-sm font-semibold text-white transition-colors hover:bg-netflix-red"
+            onClick={() => !isSearching && onGoogleSearch(query)}
+            disabled={isSearching}
+            className={`flex h-9 items-center gap-1.5 rounded-lg px-4 text-sm font-semibold text-white transition-colors ${
+              isSearching
+                ? "bg-netflix-red/60 cursor-wait"
+                : "bg-netflix-red/90 hover:bg-netflix-red"
+            }`}
           >
             <Sparkles className="h-3.5 w-3.5" />
-            AI Search
+            {isSearching ? "Searching" : "AI Search"}
           </button>
         </motion.div>
       )}

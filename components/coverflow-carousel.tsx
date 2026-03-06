@@ -14,6 +14,11 @@ import Image from "next/image";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { Movie } from "@/lib/movies";
 
+export type CarouselMovie = Pick<Movie, "title" | "year" | "rating" | "genres" | "description"> & {
+  id?: number;
+  poster?: string | null;
+};
+
 const CARD_WIDTH = 280;
 const CARD_GAP = -80; // stronger overlap for cramped look
 const CARD_STEP = CARD_WIDTH + CARD_GAP;
@@ -36,7 +41,7 @@ function getGradient(id: number): string {
   return gradients[(id - 1) % gradients.length];
 }
 
-export default function CoverflowCarousel({ movies }: { movies: Movie[] }) {
+export default function CoverflowCarousel({ movies }: { movies: CarouselMovie[] }) {
   const [activeIndex, setActiveIndex] = useState(Math.floor(movies.length / 2));
   const containerRef = useRef<HTMLDivElement>(null);
   const x = useMotionValue(0);
@@ -140,7 +145,7 @@ export default function CoverflowCarousel({ movies }: { movies: Movie[] }) {
                   const isVisible = index >= startIndex && index < endIndex;
                   return (
                     <CoverflowCard
-                      key={movie.id}
+                      key={movie.id ?? `ai-${index}`}
                       movie={movie}
                       index={index}
                       activeIndex={activeIndex}
@@ -174,7 +179,7 @@ export default function CoverflowCarousel({ movies }: { movies: Movie[] }) {
 }
 
 interface CoverflowCardProps {
-  movie: Movie;
+  movie: CarouselMovie;
   index: number;
   activeIndex: number;
   motionX: MotionValue<number>;
@@ -257,7 +262,7 @@ const CoverflowCard = memo(function CoverflowCard({
         ) : (
           <div
             className="absolute inset-0"
-            style={{ background: getGradient(movie.id) }}
+            style={{ background: getGradient(movie.id ?? index + 1) }}
           />
         )}
 

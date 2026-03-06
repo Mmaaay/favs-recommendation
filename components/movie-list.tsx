@@ -5,7 +5,12 @@ import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
 import type { Movie } from "@/lib/movies";
 
-export default function MovieList({ movies }: { movies: Movie[] }) {
+type ListMovie = Pick<Movie, "title" | "year" | "rating" | "genres" | "description"> & {
+  id?: number;
+  poster?: string | null;
+};
+
+export default function MovieList({ movies }: { movies: ListMovie[] }) {
   return (
     <div className="mx-auto w-full max-w-5xl px-4">
       <motion.h2
@@ -35,7 +40,7 @@ export default function MovieList({ movies }: { movies: Movie[] }) {
           )}
 
           {movies.map((movie, i) => (
-            <MovieRow key={movie.id} movie={movie} index={i} isLast={i === movies.length - 1} />
+            <MovieRow key={movie.id ?? `row-${i}`} movie={movie} index={i} isLast={i === movies.length - 1} />
           ))}
         </AnimatePresence>
       </div>
@@ -48,7 +53,7 @@ const MovieRow = memo(function MovieRow({
   index,
   isLast,
 }: {
-  movie: Movie;
+  movie: ListMovie;
   index: number;
   isLast: boolean;
 }) {
