@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, memo } from "react";
 import {
   motion,
   AnimatePresence,
@@ -10,6 +10,8 @@ import {
   MotionValue,
   type PanInfo,
 } from "framer-motion";
+import Image from "next/image";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { Movie } from "@/lib/movies";
 
 const CARD_WIDTH = 280;
@@ -40,8 +42,6 @@ export default function CoverflowCarousel({ movies }: { movies: Movie[] }) {
   const x = useMotionValue(0);
   const dragStartX = useRef(0);
 
-  const totalWidth = Math.max(0, (movies.length - 1) * CARD_STEP);
-
   // Reset active index when movie list changes
   useEffect(() => {
     setActiveIndex(Math.floor(movies.length / 2));
@@ -59,18 +59,22 @@ export default function CoverflowCarousel({ movies }: { movies: Movie[] }) {
   }
 
   function handleDragEnd(_: unknown, info: PanInfo) {
-    const offset = info.offset.x;
-    const velocity = info.velocity.x;
+    const containerWidth = containerRef.current?.offsetWidth ?? 0;
+    const currentX = x.get();
+    // Calculate which card is closest to center after the drag
+    const centerOffset = -currentX + containerWidth / 2 - CARD_WIDTH / 2;
+    let snappedIndex = Math.round(centerOffset / CARD_STEP);
+    // Clamp to valid range
+    snappedIndex = Math.max(0, Math.min(snappedIndex, movies.length - 1));
+    setActiveIndex(snappedIndex);
+  }
 
-    let newIndex = activeIndex;
-    if (Math.abs(offset) > 50 || Math.abs(velocity) > 300) {
-      if (offset < 0 || velocity < -300) {
-        newIndex = Math.min(activeIndex + 1, movies.length - 1);
-      } else {
-        newIndex = Math.max(activeIndex - 1, 0);
-      }
-    }
-    setActiveIndex(newIndex);
+  function goLeft() {
+    setActiveIndex((prev) => Math.max(0, prev - 1));
+  }
+
+  function goRight() {
+    setActiveIndex((prev) => Math.min(movies.length - 1, prev + 1));
   }
 
   function handleCardClick(index: number) {
@@ -82,9 +86,42 @@ export default function CoverflowCarousel({ movies }: { movies: Movie[] }) {
   const startIndex = Math.max(0, activeIndex - VISIBLE_RADIUS);
   const endIndex = Math.min(movies.length, activeIndex + VISIBLE_RADIUS + 1);
 
+  // Compute tight drag constraints so you can't swipe past first/last card
+  const getDragConstraints = () => {
+    const containerWidth = containerRef.current?.offsetWidth ?? 0;
+    const half = containerWidth / 2 - CARD_WIDTH / 2;
+    // leftmost: last card centered
+    const left = -(movies.length - 1) * CARD_STEP + half;
+    // rightmost: first card centered
+    const right = half;
+    return { left: Math.min(left, right), right: Math.max(left, right) };
+  };
+
   return (
     <div className="mx-auto w-full max-w-5xl px-4">
-      <div className="rounded-2xl border border-white/6 bg-linear-to-b from-netflix-gray/80 to-netflix-dark/90 p-6 shadow-[0_0_50px_rgba(229,9,20,0.12),0_0_100px_rgba(229,9,20,0.06)] backdrop-blur-md">
+      <div className="relative rounded-2xl border border-white/6 bg-linear-to-b from-netflix-gray/80 to-netflix-dark/90 p-6 shadow-[0_0_50px_rgba(229,9,20,0.12),0_0_100px_rgba(229,9,20,0.06)] backdrop-blur-md">
+        {/* Left arrow */}
+        {movies.length > 1 && (
+          <button
+            onClick={goLeft}
+            disabled={activeIndex === 0}
+            className="absolute left-2 top-1/2 z-20 -translate-y-1/2 rounded-full bg-black/60 p-2 text-white/70 backdrop-blur-sm transition-all hover:bg-netflix-red/80 hover:text-white disabled:pointer-events-none disabled:opacity-0"
+          >
+            <ChevronLeft className="h-5 w-5" />
+          </button>
+        )}
+
+        {/* Right arrow */}
+        {movies.length > 1 && (
+          <button
+            onClick={goRight}
+            disabled={activeIndex === movies.length - 1}
+            className="absolute right-2 top-1/2 z-20 -translate-y-1/2 rounded-full bg-black/60 p-2 text-white/70 backdrop-blur-sm transition-all hover:bg-netflix-red/80 hover:text-white disabled:pointer-events-none disabled:opacity-0"
+          >
+            <ChevronRight className="h-5 w-5" />
+          </button>
+        )}
+
         <div
           ref={containerRef}
           className="relative w-full overflow-hidden"
@@ -94,8 +131,8 @@ export default function CoverflowCarousel({ movies }: { movies: Movie[] }) {
             className="flex cursor-grab items-center active:cursor-grabbing"
             style={{ x, height: "100%" }}
             drag="x"
-            dragConstraints={{ left: -totalWidth, right: totalWidth }}
-            dragElastic={0.1}
+            dragConstraints={getDragConstraints()}
+            dragElastic={0.15}
             onDragStart={handleDragStart}
             onDragEnd={handleDragEnd}
           >
@@ -146,7 +183,7 @@ interface CoverflowCardProps {
   isVisible?: boolean;
 }
 
-function CoverflowCard({
+const CoverflowCard = memo(function CoverflowCard({
   movie,
   index,
   activeIndex,
@@ -208,11 +245,14 @@ function CoverflowCard({
       >
         {/* Poster image or gradient fallback */}
         {movie.poster ? (
-          <img
+          <Image
             src={movie.poster}
             alt={movie.title}
-            loading="lazy"
-            className="absolute inset-0 h-full w-full object-cover"
+            fill
+            sizes="280px"
+            className="object-cover"
+            priority={isActive}
+            loading={isActive ? "eager" : "lazy"}
           />
         ) : (
           <div
@@ -221,19 +261,21 @@ function CoverflowCard({
           />
         )}
 
-        {/* Shimmer placeholder animation */}
-        <motion.div
-          className="absolute inset-0 pointer-events-none"
-          initial={{ x: '-120%' }}
-          animate={{ x: '120%' }}
-          transition={{ repeat: Infinity, duration: 1.6, ease: 'linear' }}
-          style={{
-            background:
-              'linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.06) 48%, rgba(255,255,255,0) 100%)',
-            mixBlendMode: 'overlay',
-            opacity: 0.9,
-          }}
-        />
+        {/* Shimmer placeholder animation — only on visible cards */}
+        {isVisible && (
+          <motion.div
+            className="absolute inset-0 pointer-events-none"
+            initial={{ x: '-120%' }}
+            animate={{ x: '120%' }}
+            transition={{ repeat: Infinity, duration: 1.6, ease: 'linear' }}
+            style={{
+              background:
+                'linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.06) 48%, rgba(255,255,255,0) 100%)',
+              mixBlendMode: 'overlay',
+              opacity: 0.9,
+            }}
+          />
+        )}
 
         {/* Movie info overlay */}
         <div className="absolute inset-0 flex flex-col justify-end bg-linear-to-t from-black via-black/60 to-transparent p-4">
@@ -287,3 +329,4 @@ function CoverflowCard({
     </motion.div>
   );
 }
+);

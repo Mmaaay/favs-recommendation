@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Search } from "lucide-react";
+import { Search, Sparkles } from "lucide-react";
 import { Input } from "@/components/ui/input";
 
 export default function SearchBox({
@@ -10,12 +10,16 @@ export default function SearchBox({
   tags,
   addTag,
   removeTag,
+  onLocalSearch,
+  onGoogleSearch,
 }: {
   query: string;
   setQuery: (q: string) => void;
   tags: string[];
   addTag: (t: string) => void;
   removeTag: (t: string) => void;
+  onLocalSearch: (q: string) => void;
+  onGoogleSearch: (q: string) => void;
 }) {
   const isFocused = query.length > 0 || tags.length > 0;
 
@@ -24,7 +28,8 @@ export default function SearchBox({
       e.preventDefault();
       const v = query.trim();
       if (!v) return;
-      // split into tokens and add each as tag
+      onLocalSearch(v);
+      // also add tokens as tags for filtering
       const tokens = v.split(/[^a-zA-Z0-9]+/).map((t) => t.trim()).filter(Boolean);
       tokens.forEach((t) => addTag(t));
       setQuery("");
@@ -58,16 +63,37 @@ export default function SearchBox({
           onKeyDown={onKeyDown}
           className="h-14 border-0 bg-transparent text-base text-white placeholder:text-white/30 focus-visible:ring-0 focus-visible:border-0 shadow-none"
         />
-        {query.length > 0 && (
-          <motion.button
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="mr-3 flex h-9 items-center gap-2 rounded-lg bg-netflix-red px-4 text-sm font-semibold text-white transition-colors hover:bg-netflix-red-hover"
-          >
-            Search
-          </motion.button>
-        )}
       </div>
+
+      {/* Search buttons — Google-style below the bar */}
+      {query.length > 0 && (
+        <motion.div
+          className="mt-3 flex justify-center gap-3"
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.2 }}
+        >
+          <button
+            onClick={() => {
+              onLocalSearch(query);
+              const tokens = query.trim().split(/[^a-zA-Z0-9]+/).map((t) => t.trim()).filter(Boolean);
+              tokens.forEach((t) => addTag(t));
+              setQuery("");
+            }}
+            className="flex h-9 items-center gap-1.5 rounded-lg bg-white/8 px-4 text-sm font-medium text-white/80 transition-colors hover:bg-white/15 hover:text-white"
+          >
+            <Search className="h-3.5 w-3.5" />
+            Search
+          </button>
+          <button
+            onClick={() => onGoogleSearch(query)}
+            className="flex h-9 items-center gap-1.5 rounded-lg bg-netflix-red/90 px-4 text-sm font-semibold text-white transition-colors hover:bg-netflix-red"
+          >
+            <Sparkles className="h-3.5 w-3.5" />
+            AI Search
+          </button>
+        </motion.div>
+      )}
 
       {/* Selected tags */}
       {tags.length > 0 && (

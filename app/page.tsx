@@ -1,11 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useCallback } from "react";
 import { motion } from "framer-motion";
 import CoverflowCarousel from "@/components/coverflow-carousel";
+import MovieList from "@/components/movie-list";
 import SearchBox from "@/components/search-box";
 import { MOVIES } from "@/lib/movies";
 import { normalizeSearch, tokenizeSearch } from "@/lib/utils";
+import { aiSearch } from "@/app/actions/search";
 
 export default function Home() {
   const [query, setQuery] = useState("");
@@ -20,6 +22,21 @@ export default function Home() {
   function removeTag(tag: string) {
     setTags((prev) => prev.filter((p) => p !== tag));
   }
+
+  // Local search (TBD — placeholder)
+  function handleLocalSearch(q: string) {
+    console.log("[Local Search]", q);
+  }
+
+  // AI search via server action (throttled server-side)
+  const handleGoogleSearch = useCallback(async (q: string) => {
+    const result = await aiSearch(q);
+    if (!result.ok) {
+      console.log("[AI Search]", result.error);
+    } else {
+      console.log("[AI Search] result:", result);
+    }
+  }, []);
 
   const filtered = useMemo(() => {
     const normQuery = normalizeSearch(query);
@@ -100,15 +117,27 @@ export default function Home() {
       </motion.section>
 
       {/* Bottom: Search input */}
-      <section className="w-full pb-16">
+      <section className="w-full pb-8">
         <SearchBox
           query={query}
           setQuery={setQuery}
           tags={tags}
           addTag={addTag}
           removeTag={removeTag}
+          onLocalSearch={handleLocalSearch}
+          onGoogleSearch={handleGoogleSearch}
         />
       </section>
+
+      {/* Movie list */}
+      <motion.section
+        className="w-full pb-16"
+        initial={{ opacity: 0, y: 30 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.5, duration: 0.6 }}
+      >
+        <MovieList movies={filtered} />
+      </motion.section>
     </div>
   );
 }
