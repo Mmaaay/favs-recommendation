@@ -135,7 +135,9 @@ export default function Home() {
             transition={{ duration: 0.4 }}
           >
             <h2 className="mb-4 text-xl font-bold text-white">
-              Recommended{" "}
+              Recommended{" "} 
+              <span className="text-xs font-bold text-red-400">Work In Progress</span>
+              {" "}
               <span className="text-sm font-normal text-white/40">({aiMovies.length})</span>
             </h2>
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">

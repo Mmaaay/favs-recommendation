@@ -159,7 +159,7 @@ export async function fetchByName(
 
   const [detail, similar] = await Promise.all([
     tmdbFetch(tmdbUrl(`/${media}/${item.id as number}`)) as Promise<Record<string, unknown>>,
-    tmdbFetch(tmdbUrl(`/${media}/${item.id as number}/similar`)) as Promise<{ results?: Record<string, unknown>[] }>,
+    tmdbFetch(tmdbUrl(`/${media}/${item.id as number}/recommendations`)) as Promise<{ results?: Record<string, unknown>[] }>,
   ]);
 
   const genres: string[] = ((detail.genres ?? []) as { name: string }[]).map((g) => g.name);
