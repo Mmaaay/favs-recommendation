@@ -14,7 +14,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { readStreamableValue } from "@ai-sdk/rsc";
 
 type Tab = "movies" | "music";
-type TaggedMusic = MusicResult & { type?: "entity" | "similar" | "artist_pick" };
+type TaggedMusic = MusicResult & { type?: "entity" | "similar" };
 
 export default function Home() {
   const SEARCH_DEBOUNCE_MS = 220;
@@ -144,7 +144,7 @@ export default function Home() {
         if (!value) continue;
         try {
           const parsed = JSON.parse(value) as {
-            type: "entity" | "similar" | "artist_pick";
+            type: "entity" | "similar";
             data: MusicResult;
           };
           setMusicResults((prev) => [

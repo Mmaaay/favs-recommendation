@@ -5,12 +5,11 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Music, ExternalLink } from "lucide-react";
 import type { MusicResult } from "@/lib/schemas";
 
-type TaggedMusic = MusicResult & { type?: "entity" | "similar" | "artist_pick" };
+type TaggedMusic = MusicResult & { type?: "entity" | "similar" };
 
 export default function MusicList({ tracks }: { tracks: TaggedMusic[] }) {
   const entity = tracks.find((t) => t.type === "entity");
   const similar = tracks.filter((t) => t.type === "similar");
-  const artistPicks = tracks.filter((t) => t.type === "artist_pick");
 
   return (
     <div className="mx-auto w-full max-w-5xl px-4">
@@ -79,35 +78,6 @@ export default function MusicList({ tracks }: { tracks: TaggedMusic[] }) {
                   track={track}
                   index={i}
                   isLast={i === similar.length - 1}
-                />
-              ))}
-            </AnimatePresence>
-          </div>
-        </motion.div>
-      )}
-
-      {/* Artist-based picks */}
-      {artistPicks.length > 0 && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.4 }}
-          className="mt-6"
-        >
-          <h2 className="mb-3 text-xl font-bold text-white">
-            From Similar Artists{" "}
-            <span className="text-sm font-normal text-white/40">
-              ({artistPicks.length})
-            </span>
-          </h2>
-          <div className="rounded-2xl border border-white/6 bg-linear-to-b from-netflix-gray/80 to-netflix-dark/90 shadow-[0_0_50px_rgba(229,9,20,0.08)] backdrop-blur-md">
-            <AnimatePresence mode="popLayout">
-              {artistPicks.map((track, i) => (
-                <TrackRow
-                  key={`ap-${track.name}-${track.artist}-${i}`}
-                  track={track}
-                  index={i}
-                  isLast={i === artistPicks.length - 1}
                 />
               ))}
             </AnimatePresence>

@@ -173,67 +173,25 @@ export async function getTrackInfo(
   return formatTrack(t);
 }
 
-// ── Get similar artists' top tracks ───────────────────────────────────────────
-export async function getSimilarArtistTracks(
-  artist: string,
-  limit = 5,
-): Promise<MusicResult[]> {
-  const data = await lastfmFetch(
-    lastfmUrl({
-      method: "artist.getSimilar",
-      artist,
-      limit: String(limit),
-      autocorrect: "1",
-    }),
-  );
-
-  const similar = data.similarartists as Record<string, unknown> | undefined;
-  if (!similar) return [];
-
-  const artists = similar.artist;
-  if (!Array.isArray(artists)) return [];
-
-  const results: MusicResult[] = [];
-
-  // Get top track from each similar artist
-  for (const a of artists.slice(0, limit)) {
-    const artistName = (a as Record<string, unknown>).name as string;
-    if (!artistName) continue;
-
-    const topData = await lastfmFetch(
-      lastfmUrl({
-        method: "artist.getTopTracks",
-        artist: artistName,
-        limit: "2",
-        autocorrect: "1",
-      }),
-    );
-
-    const topTracks = topData.toptracks as Record<string, unknown> | undefined;
-    if (!topTracks) continue;
-
-    const trackArr = topTracks.track;
-    if (!Array.isArray(trackArr)) continue;
-
-    for (const t of trackArr.slice(0, 2)) {
-      const formatted = formatTrack(t as Record<string, unknown>, artistName);
-      if (formatted) results.push(formatted);
-    }
-  }
-
-  return results;
-}
-
-// ── Combined recommendation: similar tracks + similar artist tracks ───────────
+// ── Combined recommendation: matched track + similar tracks ───────────────────
 export async function getRecommendations(
   artist: string,
   track: string,
-): Promise<{ entity: MusicResult | null; similar: MusicResult[]; artistPicks: MusicResult[] }> {
-  const [trackInfo, similar, artistPicks] = await Promise.all([
+): Promise<{ entity: MusicResult | null; similar: MusicResult[] }> {
+  const [trackInfo, similar] = await Promise.all([
     getTrackInfo(artist, track),
-    getSimilarTracks(artist, track, 10),
-    getSimilarArtistTracks(artist, 4),
+    getSimilarTracks(artist, track, 12),
   ]);
 
-  return { entity: trackInfo, similar, artistPicks };
+  const baseArtist = (trackInfo?.artist ?? artist).trim().toLowerCase();
+
+  const filteredSimilar = similar.filter((candidate) => {
+    const candidateArtist = candidate.artist.trim().toLowerCase();
+
+    // Keep recommendations focused on related tracks from other artists only.
+    if (candidateArtist === baseArtist) return false;
+    return true;
+  });
+
+  return { entity: trackInfo, similar: filteredSimilar };
 }
