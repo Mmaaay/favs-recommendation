@@ -54,6 +54,7 @@ export default function Home() {
   const [isMovieSearching, setIsMovieSearching] = useState(false);
   const [aiMovies, setAiMovies] = useState<MovieResult[]>([]);
   const [carouselMovies, setCarouselMovies] = useState<MovieResult[]>([]);
+  const [hasMovieSearched, setHasMovieSearched] = useState(false);
   const [contentType, setContentType] = useState<ContentTypeFilter>("both");
   const [durationFilter, setDurationFilter] = useState<DurationFilter>("any");
   const skipAutoSearch = useRef(false);
@@ -66,6 +67,7 @@ export default function Home() {
   const [musicQuery, setMusicQuery] = useState("");
   const [isMusicSearching, setIsMusicSearching] = useState(false);
   const [musicResults, setMusicResults] = useState<TaggedMusic[]>([]);
+  const [hasMusicSearched, setHasMusicSearched] = useState(false);
 
   // ── Movie helpers ───────────────────────────────────────────────────────────
   const addTag = useCallback((raw: string) => {
@@ -95,6 +97,7 @@ export default function Home() {
       setIsMovieSearching(true);
       setAiMovies([]);
       setCarouselMovies([]);
+      setHasMovieSearched(false);
 
       try {
         const response = await aiSearch(q, effectiveTags, contentType);
@@ -118,6 +121,7 @@ export default function Home() {
         }
       } finally {
         setIsMovieSearching(false);
+        setHasMovieSearched(true);
         setAiMovies((final) => {
           setCarouselMovies(shuffleArray(final).slice(0, 10));
           return final;
@@ -176,6 +180,7 @@ export default function Home() {
     if (!q.trim()) return;
     setIsMusicSearching(true);
     setMusicResults([]);
+    setHasMusicSearched(false);
 
     try {
       const response = await musicSearch(q);
@@ -199,6 +204,7 @@ export default function Home() {
       }
     } finally {
       setIsMusicSearching(false);
+      setHasMusicSearched(true);
     }
   }, []);
 
@@ -392,6 +398,24 @@ export default function Home() {
                   </div>
                 </motion.div>
               )}
+
+              {/* No results message */}
+              {!isMovieSearching &&
+                hasMovieSearched &&
+                filteredMovies.length === 0 && (
+                  <motion.div
+                    className="mx-auto mt-10 flex max-w-md flex-col items-center gap-3 text-center"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    <Film className="h-10 w-10 text-white/20" />
+                    <p className="text-base text-white/50">
+                      Nothing matched your search. Try rephrasing it or use a
+                      different spelling.
+                    </p>
+                  </motion.div>
+                )}
             </section>
 
             {/* Movie list */}
@@ -431,6 +455,23 @@ export default function Home() {
               transition={{ delay: 0.2, duration: 0.6 }}
             >
               <MusicList tracks={musicResults} />
+
+              {/* No results message */}
+              {!isMusicSearching &&
+                hasMusicSearched &&
+                musicResults.length === 0 && (
+                  <motion.div
+                    className="mx-auto mt-10 flex max-w-md flex-col items-center gap-3 text-center"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    <Music className="h-10 w-10 text-white/20" />
+                    <p className="text-base text-white/50">
+                      No tracks found. Try a different song name or artist.
+                    </p>
+                  </motion.div>
+                )}
             </motion.section>
           </motion.div>
         )}
