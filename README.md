@@ -28,15 +28,15 @@ An AI-powered recommendation engine for discovering movies, TV series, and music
 
 ## Tech Stack
 
-| Layer | Technologies |
-|---|---|
-| Framework | Next.js 16, React 19, TypeScript 5 |
-| AI | Vercel AI SDK, Google Gemini 2.5 Flash, `@ai-sdk/google` |
-| APIs | [TMDB](https://www.themoviedb.org/) (movies/TV), [Last.fm](https://www.last.fm/) (music) |
-| Styling | Tailwind CSS 4, shadcn/ui, Radix UI, Framer Motion |
-| Rate Limiting | Upstash Redis + sliding window |
-| Validation | Zod 4 |
-| Tooling | ESLint 9, Prettier, Husky, pnpm |
+| Layer         | Technologies                                                                             |
+| ------------- | ---------------------------------------------------------------------------------------- |
+| Framework     | Next.js 16, React 19, TypeScript 5                                                       |
+| AI            | Vercel AI SDK, Google Gemini 2.5 Flash, `@ai-sdk/google`                                 |
+| APIs          | [TMDB](https://www.themoviedb.org/) (movies/TV), [Last.fm](https://www.last.fm/) (music) |
+| Styling       | Tailwind CSS 4, shadcn/ui, Radix UI, Framer Motion                                       |
+| Rate Limiting | Upstash Redis + sliding window                                                           |
+| Validation    | Zod 4                                                                                    |
+| Tooling       | ESLint 9, Prettier, Husky, pnpm                                                          |
 
 ## How It Works
 
@@ -76,17 +76,18 @@ User Input → identifySong()  [Gemini + Google Search]
 
 All API-facing functions are rate-limited via Upstash Redis with sliding windows:
 
-| Function | Limit |
-|---|---|
-| Movie search action | 10 req / 60s |
-| AI entity identification | 5 req / 60s |
-| TMDB API calls | 30 req / 60s |
-| Music search action | 10 req / 60s |
-| Last.fm API calls | 30 req / 60s |
+| Function                 | Limit        |
+| ------------------------ | ------------ |
+| Movie search action      | 10 req / 60s |
+| AI entity identification | 5 req / 60s  |
+| TMDB API calls           | 30 req / 60s |
+| Music search action      | 10 req / 60s |
+| Last.fm API calls        | 30 req / 60s |
 
 ### Security
 
 Both TMDB and Last.fm clients are hardened with:
+
 - Path validation (no directory traversal)
 - Parameter allowlisting to prevent API key override
 - Hostname pinning
@@ -139,6 +140,7 @@ GOOGLE_GENERATIVE_AI_API_KEY=your_gemini_api_key
 ```
 
 You can obtain these from:
+
 - **TMDB** — [developer.themoviedb.org](https://developer.themoviedb.org/)
 - **Last.fm** — [last.fm/api](https://www.last.fm/api)
 - **Upstash** — [upstash.com](https://upstash.com/)

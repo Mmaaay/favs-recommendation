@@ -227,7 +227,6 @@ export default function Home() {
     <div className="flex min-h-screen flex-col items-center bg-netflix-dark">
       {/* Top: Welcome section */}
       <header className="flex w-full flex-col items-center pt-12 pb-4">
-        
         <motion.h1
           className="text-4xl font-bold tracking-tight text-white md:text-5xl"
           initial={{ opacity: 0, y: -20 }}
