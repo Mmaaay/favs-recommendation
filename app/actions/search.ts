@@ -85,7 +85,11 @@ Output format:
 }
 
 // ── Main server action ────────────────────────────────────────────────────────
-export async function aiSearch(query: string, tags: string[] = []) {
+export async function aiSearch(
+  query: string,
+  tags: string[] = [],
+  contentType: "movie" | "tv_series" | "both" = "both",
+) {
   const trimmed = await sanitize(query);
   if (!trimmed && tags.length === 0) {
     return { ok: false as const, error: "Query cannot be empty." };
@@ -122,17 +126,18 @@ export async function aiSearch(query: string, tags: string[] = []) {
 
       if (trimmed) {
         if (inputClass === "genre") {
-          const data = await fetchByGenre(trimmed);
+          const data = await fetchByGenre(trimmed, contentType);
           if (data) {
             movies = data.results;
           }
         } else if (inputClass === "exact_name") {
-          const data = await fetchByName(trimmed);
+          const data = await fetchByName(trimmed, contentType);
           if (data) {
             movies = data.entity ? [data.entity, ...data.results] : data.results;
           }
         } else if (inputClass === "vague" && resolvedName) {
-          const data = await fetchByName(resolvedName, resolvedMediaType);
+          const selectedType = contentType === "both" ? resolvedMediaType : contentType;
+          const data = await fetchByName(resolvedName, selectedType);
           if (data) {
             movies = data.entity ? [data.entity, ...data.results] : data.results;
           }
@@ -140,7 +145,7 @@ export async function aiSearch(query: string, tags: string[] = []) {
       } else if (tags.length > 0) {
         const genreTags = tags.filter((t) => isKnownGenre(t));
         if (genreTags.length > 0) {
-          const data = await fetchByGenres(genreTags);
+          const data = await fetchByGenres(genreTags, contentType);
           if (data) movies = data.results;
         }
       }

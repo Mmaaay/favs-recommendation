@@ -1,16 +1,19 @@
 import { z } from "zod/v4";
 
 export const MovieResultSchema = z.object({
+  id: z.number().optional(),
   title: z.string(),
   year: z.string(),
   rating: z.string(),
   poster: z.string().nullable(),
   genres: z.array(z.string()),
   description: z.string(),
+  mediaType: z.enum(["movie", "tv_series"]),
+  episodeCount: z.number().nullable().optional(),
 });
 
 export const AiSearchResultSchema = z.object({
-  movies: z.array(MovieResultSchema).max(10),
+  movies: z.array(MovieResultSchema).max(40),
 });
 
 export type MovieResult = z.infer<typeof MovieResultSchema>;

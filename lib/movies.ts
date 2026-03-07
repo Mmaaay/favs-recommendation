@@ -6,5 +6,7 @@ export interface Movie {
   rating: string;
   genres: string[];
   description: string;
+  mediaType?: "movie" | "tv_series";
+  episodeCount?: number | null;
 }
 

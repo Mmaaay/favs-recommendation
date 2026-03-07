@@ -10,11 +10,33 @@ import type { MovieResult, MusicResult } from "@/lib/schemas";
 import { normalizeSearch } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import { Film, Music } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { readStreamableValue } from "@ai-sdk/rsc";
 
 type Tab = "movies" | "music";
 type TaggedMusic = MusicResult & { type?: "entity" | "similar" };
+type ContentTypeFilter = "both" | "movie" | "tv_series";
+type DurationFilter = "any" | "short" | "medium" | "long";
+
+function shuffleArray<T>(items: T[]): T[] {
+  const copy = [...items];
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy;
+}
+
+function matchesDurationFilter(movie: MovieResult, filter: DurationFilter): boolean {
+  if (filter === "any") return true;
+  if (movie.mediaType !== "tv_series") return true;
+  const episodes = movie.episodeCount;
+  if (typeof episodes !== "number") return true;
+
+  if (filter === "short") return episodes <= 16;
+  if (filter === "medium") return episodes >= 17 && episodes <= 60;
+  return episodes > 60;
+}
 
 export default function Home() {
   const SEARCH_DEBOUNCE_MS = 220;
@@ -27,6 +49,8 @@ export default function Home() {
   const [tags, setTags] = useState<string[]>([]);
   const [isMovieSearching, setIsMovieSearching] = useState(false);
   const [aiMovies, setAiMovies] = useState<MovieResult[]>([]);
+  const [contentType, setContentType] = useState<ContentTypeFilter>("both");
+  const [durationFilter, setDurationFilter] = useState<DurationFilter>("any");
   const skipAutoSearch = useRef(false);
   const movieSearchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastMovieSearchAtRef = useRef(0);
@@ -65,7 +89,7 @@ export default function Home() {
       setAiMovies([]);
 
       try {
-        const response = await aiSearch(q, effectiveTags);
+        const response = await aiSearch(q, effectiveTags, contentType);
         if (!response.ok) return;
 
         if (response.entityName) {
@@ -88,7 +112,7 @@ export default function Home() {
         setIsMovieSearching(false);
       }
     },
-    [addTag],
+    [addTag, contentType],
   );
 
   const handleGoogleSearch = useCallback(
@@ -129,6 +153,12 @@ export default function Home() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tags]);
 
+  useEffect(() => {
+    if (!movieQuery.trim() && tags.length === 0) return;
+    handleGoogleSearch(movieQuery);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [contentType]);
+
   // ── Music handler ───────────────────────────────────────────────────────────
   const handleMusicSearch = useCallback(async (q: string) => {
     if (!q.trim()) return;
@@ -162,6 +192,14 @@ export default function Home() {
 
   // ── Derived ─────────────────────────────────────────────────────────────────
   const isMovies = activeTab === "movies";
+  const filteredMovies = useMemo(
+    () => aiMovies.filter((movie) => matchesDurationFilter(movie, durationFilter)),
+    [aiMovies, durationFilter],
+  );
+  const carouselMovies = useMemo(
+    () => shuffleArray(filteredMovies).slice(0, 10),
+    [filteredMovies],
+  );
   const tabTitles: Record<Tab, { accent: string; rest: string; subtitle: string }> = {
     movies: {
       accent: "Movie",
@@ -247,7 +285,7 @@ export default function Home() {
               animate={{ opacity: 1 }}
               transition={{ delay: 0.2, duration: 0.8 }}
             >
-              <CoverflowCarousel movies={aiMovies} />
+              <CoverflowCarousel movies={carouselMovies} />
             </motion.section>
 
             {/* Search input */}
@@ -261,10 +299,14 @@ export default function Home() {
                 onLocalSearch={handleLocalSearch}
                 onGoogleSearch={handleGoogleSearch}
                 isSearching={isMovieSearching}
+                contentType={contentType}
+                setContentType={setContentType}
+                durationFilter={durationFilter}
+                setDurationFilter={setDurationFilter}
               />
 
               {/* Grid cards */}
-              {aiMovies.length > 0 && (
+              {filteredMovies.length > 0 && (
                 <motion.div
                   className="mx-auto mt-6 w-full max-w-5xl px-4"
                   initial={{ opacity: 0, y: 20 }}
@@ -277,11 +319,11 @@ export default function Home() {
                       Work In Progress
                     </span>{" "}
                     <span className="text-sm font-normal text-white/40">
-                      ({aiMovies.length})
+                      ({filteredMovies.length})
                     </span>
                   </h2>
                   <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-                    {aiMovies.map((m, i) => (
+                    {filteredMovies.map((m, i) => (
                       <motion.div
                         key={`${m.title}-${i}`}
                         className="group overflow-hidden rounded-xl border border-white/6 bg-white/3 transition-colors hover:bg-white/8"
@@ -337,7 +379,7 @@ export default function Home() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.5, duration: 0.6 }}
             >
-              <MovieList movies={aiMovies} />
+              <MovieList movies={filteredMovies} />
             </motion.section>
           </motion.div>
         ) : (
