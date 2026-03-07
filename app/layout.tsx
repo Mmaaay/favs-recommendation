@@ -13,8 +13,23 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Movie Recommendations",
-  description: "Discover your next favorite movie",
+  title: "Favs — AI-Powered Movie, TV & Music Recommendations",
+  description:
+    "Describe what you're looking for — even vaguely — and get personalized movie, TV series, and music recommendations powered by AI.",
+  openGraph: {
+    title: "Favs — AI-Powered Recommendations",
+    description:
+      "Discover your next favorite movie, TV series, or song with AI-powered search and recommendations.",
+    images: [{ url: "/og-image.png", width: 1024, height: 1024 }],
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Favs — AI-Powered Recommendations",
+    description:
+      "Discover your next favorite movie, TV series, or song with AI-powered search and recommendations.",
+    images: ["/og-image.png"],
+  },
 };
 
 export default function RootLayout({
