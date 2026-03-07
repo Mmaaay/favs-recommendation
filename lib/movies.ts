@@ -9,4 +9,3 @@ export interface Movie {
   mediaType?: "movie" | "tv_series";
   episodeCount?: number | null;
 }
-

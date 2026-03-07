@@ -5,7 +5,10 @@ import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
 import type { Movie } from "@/lib/movies";
 
-type ListMovie = Pick<Movie, "title" | "year" | "rating" | "genres" | "description"> & {
+type ListMovie = Pick<
+  Movie,
+  "title" | "year" | "rating" | "genres" | "description"
+> & {
   id?: number;
   poster?: string | null;
 };
@@ -40,7 +43,12 @@ export default function MovieList({ movies }: { movies: ListMovie[] }) {
           )}
 
           {movies.map((movie, i) => (
-            <MovieRow key={movie.id ?? `row-${i}`} movie={movie} index={i} isLast={i === movies.length - 1} />
+            <MovieRow
+              key={movie.id ?? `row-${i}`}
+              movie={movie}
+              index={i}
+              isLast={i === movies.length - 1}
+            />
           ))}
         </AnimatePresence>
       </div>
@@ -84,7 +92,9 @@ const MovieRow = memo(function MovieRow({
         {/* Rating badge */}
         <div className="absolute top-1 right-1 flex items-center gap-0.5 rounded bg-black/70 px-1.5 py-0.5 backdrop-blur-sm">
           <span className="text-[10px] font-bold text-netflix-red">★</span>
-          <span className="text-[10px] font-semibold text-white">{movie.rating}</span>
+          <span className="text-[10px] font-semibold text-white">
+            {movie.rating}
+          </span>
         </div>
       </div>
 

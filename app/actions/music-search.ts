@@ -114,13 +114,20 @@ export async function musicSearch(query: string) {
   // Rate limit (shared Redis)
   const rl = await checkLimit(musicSearchLimiter);
   if (!rl.allowed) {
-    return { ok: false as const, error: `Rate limited — retry in ${rl.retryAfter}s` };
+    return {
+      ok: false as const,
+      error: `Rate limited — retry in ${rl.retryAfter}s`,
+    };
   }
 
   // Step 1: Resolve intended track via AI first (primary path)
   let matchedTrack: MusicResult | null = null;
   let recommendationSeed: MusicResult | null = null;
-  let identifiedTrack: { track: string; artist: string; confidence: string } | null = null;
+  let identifiedTrack: {
+    track: string;
+    artist: string;
+    confidence: string;
+  } | null = null;
   let entityName: string | null = null;
 
   try {
@@ -129,7 +136,9 @@ export async function musicSearch(query: string) {
       identifiedTrack = identified;
       entityName = `${identified.track} — ${identified.artist}`;
       recommendationSeed = toCanonicalSeed(identified.track, identified.artist);
-      matchedTrack = await searchTrack(`${identified.artist} ${identified.track}`);
+      matchedTrack = await searchTrack(
+        `${identified.artist} ${identified.track}`,
+      );
 
       // Keep the displayed entity canonical unless the user explicitly requested variants.
       if (!allowVariantTitles) {
@@ -154,7 +163,10 @@ export async function musicSearch(query: string) {
   }
 
   if (!recommendationSeed && identifiedTrack) {
-    recommendationSeed = toCanonicalSeed(identifiedTrack.track, identifiedTrack.artist);
+    recommendationSeed = toCanonicalSeed(
+      identifiedTrack.track,
+      identifiedTrack.artist,
+    );
   }
 
   if (!matchedTrack && !recommendationSeed) {
@@ -166,10 +178,7 @@ export async function musicSearch(query: string) {
   (async () => {
     try {
       const seed = recommendationSeed ?? matchedTrack!;
-      const primary = await getRecommendations(
-        seed.artist,
-        seed.name,
-      );
+      const primary = await getRecommendations(seed.artist, seed.name);
 
       // Stream the matched entity first
       const entityCard: MusicResult = primary.entity ?? matchedTrack ?? seed;
@@ -199,9 +208,7 @@ export async function musicSearch(query: string) {
 
       // Stream similar tracks.
       for (const track of finalSimilar) {
-        musicStream.update(
-          JSON.stringify({ type: "similar", data: track }),
-        );
+        musicStream.update(JSON.stringify({ type: "similar", data: track }));
         await new Promise((r) => setTimeout(r, 80));
       }
 

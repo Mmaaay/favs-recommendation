@@ -98,7 +98,10 @@ export async function aiSearch(
   // Upstash rate limit check
   const rl = await checkLimit(aiSearchLimiter);
   if (!rl.allowed) {
-    return { ok: false as const, error: `Rate limited — retry in ${rl.retryAfter}s` };
+    return {
+      ok: false as const,
+      error: `Rate limited — retry in ${rl.retryAfter}s`,
+    };
   }
 
   // Pre-resolve entity for vague queries before starting the stream
@@ -133,13 +136,18 @@ export async function aiSearch(
         } else if (inputClass === "exact_name") {
           const data = await fetchByName(trimmed, contentType);
           if (data) {
-            movies = data.entity ? [data.entity, ...data.results] : data.results;
+            movies = data.entity
+              ? [data.entity, ...data.results]
+              : data.results;
           }
         } else if (inputClass === "vague" && resolvedName) {
-          const selectedType = contentType === "both" ? resolvedMediaType : contentType;
+          const selectedType =
+            contentType === "both" ? resolvedMediaType : contentType;
           const data = await fetchByName(resolvedName, selectedType);
           if (data) {
-            movies = data.entity ? [data.entity, ...data.results] : data.results;
+            movies = data.entity
+              ? [data.entity, ...data.results]
+              : data.results;
           }
         }
       } else if (tags.length > 0) {

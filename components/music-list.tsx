@@ -20,11 +20,8 @@ export default function MusicList({ tracks }: { tracks: TaggedMusic[] }) {
           animate={{ opacity: 1, y: 0 }}
           className="mb-6"
         >
-          <h2 className="mb-3 text-xl font-bold text-white">
-            Matched Track
-          </h2>
+          <h2 className="mb-3 text-xl font-bold text-white">Matched Track</h2>
           <div className="flex items-center gap-4 rounded-xl border border-white/6 bg-white/3 p-4">
-
             <div className="min-w-0 flex-1">
               <h3 className="truncate text-lg font-bold text-white">
                 {entity.name}
@@ -121,8 +118,6 @@ const TrackRow = memo(function TrackRow({
         !isLast ? "border-b border-white/6" : ""
       }`}
     >
-      
-
       {/* Info */}
       <div className="flex min-w-0 flex-1 flex-col justify-center">
         <h3 className="truncate text-sm font-bold text-white transition-colors duration-200 group-hover:text-netflix-red">

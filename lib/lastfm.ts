@@ -59,8 +59,6 @@ async function lastfmFetch(url: string): Promise<Record<string, unknown>> {
   return res.json();
 }
 
-
-
 function formatTrack(
   t: Record<string, unknown>,
   artistFallback?: string,
@@ -72,8 +70,10 @@ function formatTrack(
     typeof t.artist === "string"
       ? t.artist
       : typeof t.artist === "object" && t.artist !== null
-        ? ((t.artist as Record<string, unknown>).name as string) ?? artistFallback ?? "Unknown"
-        : artistFallback ?? "Unknown";
+        ? (((t.artist as Record<string, unknown>).name as string) ??
+          artistFallback ??
+          "Unknown")
+        : (artistFallback ?? "Unknown");
 
   const playcount = t.playcount
     ? Number(t.playcount)
@@ -95,8 +95,6 @@ function formatTrack(
     }
   }
 
-  const match = typeof t.match === "number" ? t.match : t.match ? Number(t.match) : undefined;
-
   return {
     name,
     artist,
@@ -107,14 +105,12 @@ function formatTrack(
 }
 
 // ── Search for a track ────────────────────────────────────────────────────────
-export async function searchTrack(
-  query: string,
-): Promise<MusicResult | null> {
+export async function searchTrack(query: string): Promise<MusicResult | null> {
   const data = await lastfmFetch(
     lastfmUrl({ method: "track.search", track: query, limit: "1" }),
   );
 
-  const results = (data.results as Record<string, unknown>);
+  const results = data.results as Record<string, unknown>;
   if (!results) return null;
 
   const trackMatches = results.trackmatches as Record<string, unknown>;

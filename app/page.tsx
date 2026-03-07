@@ -12,6 +12,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Film, Music } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { readStreamableValue } from "@ai-sdk/rsc";
+import Image from "next/image";
 
 type Tab = "movies" | "music";
 type TaggedMusic = MusicResult & { type?: "entity" | "similar" };
@@ -27,7 +28,10 @@ function shuffleArray<T>(items: T[]): T[] {
   return copy;
 }
 
-function matchesDurationFilter(movie: MovieResult, filter: DurationFilter): boolean {
+function matchesDurationFilter(
+  movie: MovieResult,
+  filter: DurationFilter,
+): boolean {
   if (filter === "any") return true;
   if (movie.mediaType !== "tv_series") return true;
   const episodes = movie.episodeCount;
@@ -52,7 +56,9 @@ export default function Home() {
   const [contentType, setContentType] = useState<ContentTypeFilter>("both");
   const [durationFilter, setDurationFilter] = useState<DurationFilter>("any");
   const skipAutoSearch = useRef(false);
-  const movieSearchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const movieSearchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
   const lastMovieSearchAtRef = useRef(0);
 
   // ── Music state ─────────────────────────────────────────────────────────────
@@ -193,14 +199,18 @@ export default function Home() {
   // ── Derived ─────────────────────────────────────────────────────────────────
   const isMovies = activeTab === "movies";
   const filteredMovies = useMemo(
-    () => aiMovies.filter((movie) => matchesDurationFilter(movie, durationFilter)),
+    () =>
+      aiMovies.filter((movie) => matchesDurationFilter(movie, durationFilter)),
     [aiMovies, durationFilter],
   );
   const carouselMovies = useMemo(
     () => shuffleArray(filteredMovies).slice(0, 10),
     [filteredMovies],
   );
-  const tabTitles: Record<Tab, { accent: string; rest: string; subtitle: string }> = {
+  const tabTitles: Record<
+    Tab,
+    { accent: string; rest: string; subtitle: string }
+  > = {
     movies: {
       accent: "Movie",
       rest: " Finder",
@@ -223,7 +233,9 @@ export default function Home() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6 }}
         >
-          <span className="text-netflix-red">{tabTitles[activeTab].accent}</span>
+          <span className="text-netflix-red">
+            {tabTitles[activeTab].accent}
+          </span>
           {tabTitles[activeTab].rest}
         </motion.h1>
         <motion.p
@@ -332,7 +344,7 @@ export default function Home() {
                         transition={{ delay: i * 0.05, duration: 0.3 }}
                       >
                         {m.poster ? (
-                          <img
+                          <Image
                             src={m.poster}
                             alt={m.title}
                             className="aspect-2/3 w-full object-cover"
@@ -347,7 +359,9 @@ export default function Home() {
                           </h3>
                           <div className="mt-1 flex items-center gap-2 text-xs text-white/40">
                             <span>{m.year}</span>
-                            <span className="text-netflix-red">★ {m.rating}</span>
+                            <span className="text-netflix-red">
+                              ★ {m.rating}
+                            </span>
                           </div>
                           {m.genres.length > 0 && (
                             <div className="mt-1.5 flex flex-wrap gap-1">

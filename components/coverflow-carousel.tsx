@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, memo } from "react";
+import { useState, useRef, useEffect, useMemo, memo } from "react";
 import {
   motion,
   AnimatePresence,
@@ -8,13 +8,15 @@ import {
   useTransform,
   animate,
   MotionValue,
-  type PanInfo,
 } from "framer-motion";
 import Image from "next/image";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { Movie } from "@/lib/movies";
 
-export type CarouselMovie = Pick<Movie, "title" | "year" | "rating" | "genres" | "description"> & {
+export type CarouselMovie = Pick<
+  Movie,
+  "title" | "year" | "rating" | "genres" | "description"
+> & {
   id?: number;
   poster?: string | null;
 };
@@ -41,29 +43,67 @@ function getGradient(id: number): string {
   return gradients[(id - 1) % gradients.length];
 }
 
-export default function CoverflowCarousel({ movies }: { movies: CarouselMovie[] }) {
-  const [activeIndex, setActiveIndex] = useState(Math.floor(movies.length / 2));
+export default function CoverflowCarousel({
+  movies,
+}: {
+  movies: CarouselMovie[];
+}) {
+  const [activeMovieKey, setActiveMovieKey] = useState<string | null>(null);
+  const [containerWidth, setContainerWidth] = useState(800);
   const containerRef = useRef<HTMLDivElement>(null);
   const x = useMotionValue(0);
   const dragStartX = useRef(0);
 
-  // Reset active index when movie list changes
-  useEffect(() => {
-    setActiveIndex(Math.floor(movies.length / 2));
-  }, [movies.length]);
+  const defaultActiveIndex = Math.floor(movies.length / 2);
+
+  const getMovieKey = (movie: CarouselMovie, index: number) =>
+    String(movie.id ?? `ai-${index}-${movie.title}-${movie.year}`);
+
+  const activeIndex = useMemo(() => {
+    if (movies.length === 0) {
+      return 0;
+    }
+    if (!activeMovieKey) {
+      return defaultActiveIndex;
+    }
+
+    const selectedIndex = movies.findIndex(
+      (movie, index) => getMovieKey(movie, index) === activeMovieKey,
+    );
+    return selectedIndex === -1 ? defaultActiveIndex : selectedIndex;
+  }, [activeMovieKey, defaultActiveIndex, movies]);
 
   // Center the active card
   useEffect(() => {
-    const containerWidth = containerRef.current?.offsetWidth ?? 0;
-    const target = -activeIndex * CARD_STEP + containerWidth / 2 - CARD_WIDTH / 2;
+    const target =
+      -activeIndex * CARD_STEP + containerWidth / 2 - CARD_WIDTH / 2;
     animate(x, target, { type: "spring", stiffness: 300, damping: 30 });
-  }, [activeIndex, x]);
+  }, [activeIndex, containerWidth, x]);
+
+  // Keep measured width in state so render logic doesn't need to read refs.
+  useEffect(() => {
+    const node = containerRef.current;
+    if (!node) {
+      return;
+    }
+
+    const updateWidth = () => {
+      setContainerWidth(node.offsetWidth || 800);
+    };
+
+    const resizeObserver = new ResizeObserver(updateWidth);
+    resizeObserver.observe(node);
+
+    return () => {
+      resizeObserver.disconnect();
+    };
+  }, []);
 
   function handleDragStart() {
     dragStartX.current = x.get();
   }
 
-  function handleDragEnd(_: unknown, info: PanInfo) {
+  function handleDragEnd() {
     const containerWidth = containerRef.current?.offsetWidth ?? 0;
     const currentX = x.get();
     // Calculate which card is closest to center after the drag
@@ -71,19 +111,28 @@ export default function CoverflowCarousel({ movies }: { movies: CarouselMovie[] 
     let snappedIndex = Math.round(centerOffset / CARD_STEP);
     // Clamp to valid range
     snappedIndex = Math.max(0, Math.min(snappedIndex, movies.length - 1));
-    setActiveIndex(snappedIndex);
+    setActiveByIndex(snappedIndex);
+  }
+
+  function setActiveByIndex(index: number) {
+    const clamped = Math.max(0, Math.min(index, movies.length - 1));
+    const movie = movies[clamped];
+    if (!movie) {
+      return;
+    }
+    setActiveMovieKey(getMovieKey(movie, clamped));
   }
 
   function goLeft() {
-    setActiveIndex((prev) => Math.max(0, prev - 1));
+    setActiveByIndex(activeIndex - 1);
   }
 
   function goRight() {
-    setActiveIndex((prev) => Math.min(movies.length - 1, prev + 1));
+    setActiveByIndex(activeIndex + 1);
   }
 
   function handleCardClick(index: number) {
-    setActiveIndex(index);
+    setActiveByIndex(index);
   }
 
   // visible window: max 5 (center + 2 each side)
@@ -91,16 +140,18 @@ export default function CoverflowCarousel({ movies }: { movies: CarouselMovie[] 
   const startIndex = Math.max(0, activeIndex - VISIBLE_RADIUS);
   const endIndex = Math.min(movies.length, activeIndex + VISIBLE_RADIUS + 1);
 
-  // Compute tight drag constraints so you can't swipe past first/last card
-  const getDragConstraints = () => {
-    const containerWidth = containerRef.current?.offsetWidth ?? 0;
+  const dragConstraints = useMemo(() => {
     const half = containerWidth / 2 - CARD_WIDTH / 2;
+    if (movies.length <= 1) {
+      return { left: half, right: half };
+    }
+
     // leftmost: last card centered
     const left = -(movies.length - 1) * CARD_STEP + half;
     // rightmost: first card centered
     const right = half;
     return { left: Math.min(left, right), right: Math.max(left, right) };
-  };
+  }, [containerWidth, movies.length]);
 
   return (
     <div className="mx-auto w-full max-w-5xl px-4">
@@ -136,26 +187,26 @@ export default function CoverflowCarousel({ movies }: { movies: CarouselMovie[] 
             className="flex cursor-grab items-center active:cursor-grabbing"
             style={{ x, height: "100%" }}
             drag="x"
-            dragConstraints={getDragConstraints()}
+            dragConstraints={dragConstraints}
             dragElastic={0.15}
             onDragStart={handleDragStart}
             onDragEnd={handleDragEnd}
           >
-                {movies.map((movie, index) => {
-                  const isVisible = index >= startIndex && index < endIndex;
-                  return (
-                    <CoverflowCard
-                      key={movie.id ?? `ai-${index}`}
-                      movie={movie}
-                      index={index}
-                      activeIndex={activeIndex}
-                      motionX={x}
-                      containerRef={containerRef}
-                      onClick={() => handleCardClick(index)}
-                      isVisible={isVisible}
-                    />
-                  );
-                })}
+            {movies.map((movie, index) => {
+              const isVisible = index >= startIndex && index < endIndex;
+              return (
+                <CoverflowCard
+                  key={getMovieKey(movie, index)}
+                  movie={movie}
+                  index={index}
+                  activeIndex={activeIndex}
+                  motionX={x}
+                  containerWidth={containerWidth}
+                  onClick={() => handleCardClick(index)}
+                  isVisible={isVisible}
+                />
+              );
+            })}
           </motion.div>
         </div>
 
@@ -164,7 +215,7 @@ export default function CoverflowCarousel({ movies }: { movies: CarouselMovie[] 
           {movies.map((_, idx) => (
             <button
               key={idx}
-              onClick={() => setActiveIndex(idx)}
+              onClick={() => setActiveByIndex(idx)}
               className={`h-1.5 rounded-full transition-all duration-300 ${
                 idx === activeIndex
                   ? "w-6 bg-netflix-red"
@@ -183,7 +234,7 @@ interface CoverflowCardProps {
   index: number;
   activeIndex: number;
   motionX: MotionValue<number>;
-  containerRef: React.RefObject<HTMLDivElement | null>;
+  containerWidth: number;
   onClick: () => void;
   isVisible?: boolean;
 }
@@ -193,34 +244,61 @@ const CoverflowCard = memo(function CoverflowCard({
   index,
   activeIndex,
   motionX,
-  containerRef,
+  containerWidth,
   onClick,
   isVisible = true,
 }: CoverflowCardProps) {
-  const containerWidth = containerRef.current?.offsetWidth ?? 800;
-
   // Calculate the card's center position relative to the viewport center
-  const cardCenter: MotionValue<number> = useTransform(motionX, (latestX: number) => {
-    const cardPos = index * CARD_STEP + CARD_WIDTH / 2;
-    return cardPos + latestX - containerWidth / 2;
-  });
-
-  // Distance from center determines the transforms
-  const distance: MotionValue<number> = useTransform(cardCenter, (center: number) =>
-    Math.abs(center) / CARD_STEP
+  const cardCenter: MotionValue<number> = useTransform(
+    motionX,
+    (latestX: number) => {
+      const cardPos = index * CARD_STEP + CARD_WIDTH / 2;
+      return cardPos + latestX - containerWidth / 2;
+    },
   );
 
-  const rotateY: MotionValue<number> = useTransform(cardCenter, (center: number) => {
-    const maxRotation = 40;
-    const normalizedDistance = Math.min(Math.abs(center) / (CARD_STEP * 1.5), 1);
-    return center < 0 ? normalizedDistance * maxRotation : -normalizedDistance * maxRotation;
-  });
+  // Distance from center determines the transforms
+  const distance: MotionValue<number> = useTransform(
+    cardCenter,
+    (center: number) => Math.abs(center) / CARD_STEP,
+  );
 
-  const scale: MotionValue<number> = useTransform(distance, [0, 1, 2, 3], [1, 0.92, 0.85, 0.75]);
-  const zIndex: MotionValue<number> = useTransform(distance, (d: number) => Math.round(500 - d * 100));
-  const opacity: MotionValue<number> = useTransform(distance, [0, 1, 2, 4], [1, 0.8, 0.6, 0.3]);
-  const brightness: MotionValue<number> = useTransform(distance, [0, 1, 2], [1, 0.7, 0.4]);
-  const filterStr: MotionValue<string> = useTransform(brightness, (b: number) => `brightness(${b})`);
+  const rotateY: MotionValue<number> = useTransform(
+    cardCenter,
+    (center: number) => {
+      const maxRotation = 40;
+      const normalizedDistance = Math.min(
+        Math.abs(center) / (CARD_STEP * 1.5),
+        1,
+      );
+      return center < 0
+        ? normalizedDistance * maxRotation
+        : -normalizedDistance * maxRotation;
+    },
+  );
+
+  const scale: MotionValue<number> = useTransform(
+    distance,
+    [0, 1, 2, 3],
+    [1, 0.92, 0.85, 0.75],
+  );
+  const zIndex: MotionValue<number> = useTransform(distance, (d: number) =>
+    Math.round(500 - d * 100),
+  );
+  const opacity: MotionValue<number> = useTransform(
+    distance,
+    [0, 1, 2, 4],
+    [1, 0.8, 0.6, 0.3],
+  );
+  const brightness: MotionValue<number> = useTransform(
+    distance,
+    [0, 1, 2],
+    [1, 0.7, 0.4],
+  );
+  const filterStr: MotionValue<string> = useTransform(
+    brightness,
+    (b: number) => `brightness(${b})`,
+  );
 
   const isActive = index === activeIndex;
 
@@ -270,13 +348,13 @@ const CoverflowCard = memo(function CoverflowCard({
         {isVisible && (
           <motion.div
             className="absolute inset-0 pointer-events-none"
-            initial={{ x: '-120%' }}
-            animate={{ x: '120%' }}
-            transition={{ repeat: Infinity, duration: 1.6, ease: 'linear' }}
+            initial={{ x: "-120%" }}
+            animate={{ x: "120%" }}
+            transition={{ repeat: Infinity, duration: 1.6, ease: "linear" }}
             style={{
               background:
-                'linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.06) 48%, rgba(255,255,255,0) 100%)',
-              mixBlendMode: 'overlay',
+                "linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.06) 48%, rgba(255,255,255,0) 100%)",
+              mixBlendMode: "overlay",
               opacity: 0.9,
             }}
           />
@@ -287,7 +365,9 @@ const CoverflowCard = memo(function CoverflowCard({
           {/* Rating badge */}
           <div className="absolute top-3 right-3 flex items-center gap-1 rounded-md bg-black/70 px-2 py-1 backdrop-blur-sm">
             <span className="text-xs font-bold text-netflix-red">★</span>
-            <span className="text-xs font-semibold text-white">{movie.rating}</span>
+            <span className="text-xs font-semibold text-white">
+              {movie.rating}
+            </span>
           </div>
 
           {/* Genre pills */}
@@ -308,12 +388,16 @@ const CoverflowCard = memo(function CoverflowCard({
           </h3>
 
           {/* Year */}
-          <span className="mt-0.5 text-xs font-medium text-white/50">{movie.year}</span>
+          <span className="mt-0.5 text-xs font-medium text-white/50">
+            {movie.year}
+          </span>
 
           {/* Description — visible on hover / active */}
-          <p className={`mt-1.5 line-clamp-2 text-[11px] leading-relaxed text-white/60 transition-opacity duration-300 ${
-            isActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-          }`}>
+          <p
+            className={`mt-1.5 line-clamp-2 text-[11px] leading-relaxed text-white/60 transition-opacity duration-300 ${
+              isActive ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+            }`}
+          >
             {movie.description}
           </p>
         </div>
@@ -333,5 +417,4 @@ const CoverflowCard = memo(function CoverflowCard({
       </motion.div>
     </motion.div>
   );
-}
-);
+});

@@ -113,7 +113,11 @@ export default function SearchBox({
                 <button
                   key={option.value}
                   type="button"
-                  onClick={() => setContentType(option.value as "both" | "movie" | "tv_series")}
+                  onClick={() =>
+                    setContentType(
+                      option.value as "both" | "movie" | "tv_series",
+                    )
+                  }
                   className={`rounded-md px-3 py-1.5 font-semibold transition-colors ${
                     selected
                       ? "bg-netflix-red text-white"
@@ -138,7 +142,11 @@ export default function SearchBox({
                 <button
                   key={option.value}
                   type="button"
-                  onClick={() => setDurationFilter(option.value as "any" | "short" | "medium" | "long")}
+                  onClick={() =>
+                    setDurationFilter(
+                      option.value as "any" | "short" | "medium" | "long",
+                    )
+                  }
                   className={`rounded-md px-2.5 py-1.5 font-semibold transition-colors ${
                     selected
                       ? "bg-netflix-red text-white"
