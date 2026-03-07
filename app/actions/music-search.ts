@@ -103,7 +103,12 @@ function toCanonicalSeed(track: string, artist: string): MusicResult {
 }
 
 // ── Main music server action ──────────────────────────────────────────────────
+const MAX_QUERY_LENGTH = 50;
+
 export async function musicSearch(query: string) {
+  if (query.length > MAX_QUERY_LENGTH) {
+    return { ok: false as const, error: "Query is too long." };
+  }
   const trimmed = query.toLowerCase().trim();
   if (!trimmed) {
     return { ok: false as const, error: "Query cannot be empty." };

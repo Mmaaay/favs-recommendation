@@ -85,11 +85,16 @@ Output format:
 }
 
 // ── Main server action ────────────────────────────────────────────────────────
+const MAX_QUERY_LENGTH = 50;
+
 export async function aiSearch(
   query: string,
   tags: string[] = [],
   contentType: "movie" | "tv_series" | "both" = "both",
 ) {
+  if (query.length > MAX_QUERY_LENGTH) {
+    return { ok: false as const, error: "Query is too long." };
+  }
   const trimmed = await sanitize(query);
   if (!trimmed && tags.length === 0) {
     return { ok: false as const, error: "Query cannot be empty." };

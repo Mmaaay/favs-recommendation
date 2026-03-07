@@ -176,7 +176,8 @@ const ALLOWED_TMDB_PARAM_KEYS = new Set([
   "first_air_date_year",
 ]);
 
-const TMDB_BASE = process.env.TMDB_URL;
+if (!process.env.TMDB_URL) throw new Error("TMDB_URL is not set");
+const TMDB_BASE = process.env.TMDB_URL as string;
 const RECOMMENDATION_LIMIT = 30;
 const DISCOVER_LIMIT = 36;
 
