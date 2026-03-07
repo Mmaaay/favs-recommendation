@@ -13,6 +13,11 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(
+    process.env.VERCEL_PROJECT_PRODUCTION_URL
+      ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+      : "http://localhost:3000",
+  ),
   title: "Favs — AI-Powered Movie, TV & Music Recommendations",
   description:
     "Describe what you're looking for — even vaguely — and get personalized movie, TV series, and music recommendations powered by AI.",

@@ -53,6 +53,7 @@ export default function Home() {
   const [tags, setTags] = useState<string[]>([]);
   const [isMovieSearching, setIsMovieSearching] = useState(false);
   const [aiMovies, setAiMovies] = useState<MovieResult[]>([]);
+  const [carouselMovies, setCarouselMovies] = useState<MovieResult[]>([]);
   const [contentType, setContentType] = useState<ContentTypeFilter>("both");
   const [durationFilter, setDurationFilter] = useState<DurationFilter>("any");
   const skipAutoSearch = useRef(false);
@@ -93,6 +94,7 @@ export default function Home() {
 
       setIsMovieSearching(true);
       setAiMovies([]);
+      setCarouselMovies([]);
 
       try {
         const response = await aiSearch(q, effectiveTags, contentType);
@@ -116,6 +118,10 @@ export default function Home() {
         }
       } finally {
         setIsMovieSearching(false);
+        setAiMovies((final) => {
+          setCarouselMovies(shuffleArray(final).slice(0, 10));
+          return final;
+        });
       }
     },
     [addTag, contentType],
@@ -203,9 +209,9 @@ export default function Home() {
       aiMovies.filter((movie) => matchesDurationFilter(movie, durationFilter)),
     [aiMovies, durationFilter],
   );
-  const carouselMovies = useMemo(
-    () => shuffleArray(filteredMovies).slice(0, 10),
-    [filteredMovies],
+  const filteredCarousel = useMemo(
+    () => carouselMovies.filter((m) => matchesDurationFilter(m, durationFilter)),
+    [carouselMovies, durationFilter],
   );
   const tabTitles: Record<
     Tab,
@@ -297,7 +303,7 @@ export default function Home() {
               animate={{ opacity: 1 }}
               transition={{ delay: 0.2, duration: 0.8 }}
             >
-              <CoverflowCarousel movies={carouselMovies} />
+              <CoverflowCarousel movies={filteredCarousel} />
             </motion.section>
 
             {/* Search input */}

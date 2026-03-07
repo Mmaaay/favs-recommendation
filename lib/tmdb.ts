@@ -126,26 +126,131 @@ export type InputClass = "genre" | "exact_name" | "vague";
 
 export async function classifyInput(input: string): Promise<InputClass> {
   const lower = await sanitize(input);
-  if (KNOWN_GENRES.some((g) => lower.includes(g))) return "genre";
-  const fillers = [
+  const words = lower.split(/\s+/).filter(Boolean);
+  if (words.length === 0) return "vague";
+
+  // Pure genre: every word is a known genre (e.g. "action", "sci-fi")
+  if (words.length <= 3 && words.every((w) => KNOWN_GENRES.includes(w)))
+    return "genre";
+
+  // Words that signal a descriptive/vague query rather than an exact title
+  const vagueMarkers = new Set([
+    // filler / structural
     "that",
     "the",
+    "a",
+    "an",
     "about",
     "with",
     "where",
+    "when",
+    "who",
+    "which",
+    // media references
     "show",
     "movie",
     "film",
-  ];
-  const words = lower.split(/\s+/);
-  const hasFillers = fillers.some((w) => words.includes(w));
-  if (!hasFillers && words.length <= 5) return "exact_name";
+    "series",
+    "anime",
+    // request phrasing
+    "like",
+    "similar",
+    "something",
+    "recommend",
+    "suggest",
+    "find",
+    "give",
+    "want",
+    "need",
+    // subjects
+    "one",
+    "guy",
+    "girl",
+    "man",
+    "woman",
+    "kid",
+    "person",
+    "people",
+    "story",
+    "thing",
+    // adjectives / superlatives
+    "best",
+    "good",
+    "great",
+    "top",
+    "new",
+    "old",
+    "popular",
+    "famous",
+    "classic",
+    "favorite",
+    "favourite",
+    "worst",
+    "sad",
+    "funny",
+    "scary",
+    "weird",
+  ]);
+
+  const hasVagueMarker = words.some((w) => vagueMarkers.has(w));
+
+  // If the input mixes a genre word with other non-genre words → vague
+  const hasGenreWord = words.some((w) => KNOWN_GENRES.includes(w));
+  const hasNonGenreWord = words.some((w) => !KNOWN_GENRES.includes(w));
+  if (hasGenreWord && hasNonGenreWord) return "vague";
+
+  if (!hasVagueMarker && words.length <= 5) return "exact_name";
   return "vague";
 }
 
 // ── Sanitize ──────────────────────────────────────────────────────────────────
 export async function sanitize(s: string): Promise<string> {
   return s.toLowerCase().trim();
+}
+
+// ── Title similarity scoring ──────────────────────────────────────────────────
+function titleSimilarity(a: string, b: string): number {
+  const na = a.toLowerCase().replace(/[^a-z0-9]/g, "");
+  const nb = b.toLowerCase().replace(/[^a-z0-9]/g, "");
+  if (na === nb) return 1;
+  if (na.startsWith(nb) || nb.startsWith(na)) return 0.9;
+
+  // Longest common substring ratio
+  const longer = na.length >= nb.length ? na : nb;
+  const shorter = na.length < nb.length ? na : nb;
+  if (longer.length === 0) return 0;
+
+  let maxLen = 0;
+  for (let i = 0; i < shorter.length; i++) {
+    for (let j = i + 1; j <= shorter.length; j++) {
+      const sub = shorter.slice(i, j);
+      if (longer.includes(sub) && sub.length > maxLen) maxLen = sub.length;
+    }
+  }
+  return maxLen / longer.length;
+}
+
+function pickBestMatch(
+  candidates: Record<string, unknown>[],
+  query: string,
+  media: "movie" | "tv",
+): Record<string, unknown> {
+  const titleKey = media === "tv" ? "name" : "title";
+  let best = candidates[0];
+  let bestScore = -1;
+
+  for (const c of candidates) {
+    const title = (c[titleKey] ?? "") as string;
+    const sim = titleSimilarity(query, title);
+    // Boost by TMDB's popularity so we prefer well-known titles on ties
+    const pop = typeof c.popularity === "number" ? c.popularity : 0;
+    const score = sim * 1000 + Math.min(pop, 200);
+    if (score > bestScore) {
+      bestScore = score;
+      best = c;
+    }
+  }
+  return best;
 }
 
 // ── Shuffle (Fisher-Yates) ────────────────────────────────────────────────────
@@ -328,8 +433,11 @@ export async function fetchByName(
     tmdbUrl(`/search/${media}`, { query: name }),
   )) as { results?: Record<string, unknown>[] };
 
-  const item = searchRes.results?.[0];
-  if (!item) return null;
+  const candidates = searchRes.results ?? [];
+  if (candidates.length === 0) return null;
+
+  // Pick the result whose title best matches the query
+  const item = pickBestMatch(candidates, name, media);
 
   const [detail, similar] = await Promise.all([
     tmdbFetch(tmdbUrl(`/${media}/${item.id as number}`)) as Promise<

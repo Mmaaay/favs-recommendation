@@ -78,11 +78,13 @@ Use Google Search if needed.
 Output format:
 { "canonical_name": "...", "type": "movie" | "tv_series", "confidence": "high" | "medium" | "low" }`,
     tools: { google_search: google.tools.googleSearch({}) },
-    maxOutputTokens: 300,
   });
+
+  console.log("identifyEntity output:", text);
 
   return parseIdentifyEntityOutput(text);
 }
+
 
 // ── Main server action ────────────────────────────────────────────────────────
 const MAX_QUERY_LENGTH = 50;
