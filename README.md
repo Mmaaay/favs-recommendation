@@ -28,15 +28,15 @@ An AI-powered recommendation engine for discovering movies, TV series, and music
 
 ## Tech Stack
 
-| Layer         | Technologies                                                                             |
-| ------------- | ---------------------------------------------------------------------------------------- |
-| Framework     | Next.js 16, React 19, TypeScript 5                                                       |
-| AI            | Vercel AI SDK, Google Gemini 2.5 Flash, `@ai-sdk/google`                                 |
-| APIs          | [TMDB](https://www.themoviedb.org/) (movies/TV), [Last.fm](https://www.last.fm/) (music) |
-| Styling       | Tailwind CSS 4, shadcn/ui, Radix UI, Framer Motion                                       |
-| Rate Limiting | Upstash Redis + sliding window                                                           |
-| Validation    | Zod 4                                                                                    |
-| Tooling       | ESLint 9, Prettier, Husky, pnpm                                                          |
+| Layer | Technologies |
+|---|---|
+| Framework | Next.js 16, React 19, TypeScript 5 |
+| AI | Vercel AI SDK, Google Gemini 2.5 Flash, `@ai-sdk/google` |
+| APIs | [TMDB](https://www.themoviedb.org/) (movies/TV), [Last.fm](https://www.last.fm/) (music) |
+| Styling | Tailwind CSS 4, shadcn/ui, Radix UI, Framer Motion |
+| Rate Limiting | Upstash Redis + sliding window |
+| Validation | Zod 4 |
+| Tooling | ESLint 9, Prettier, Husky, pnpm |
 
 ## How It Works
 
@@ -74,24 +74,7 @@ User Input → identifySong()  [Gemini + Google Search]
 
 ### Rate Limiting
 
-All API-facing functions are rate-limited via Upstash Redis with sliding windows:
-
-| Function                 | Limit        |
-| ------------------------ | ------------ |
-| Movie search action      | 10 req / 60s |
-| AI entity identification | 5 req / 60s  |
-| TMDB API calls           | 30 req / 60s |
-| Music search action      | 10 req / 60s |
-| Last.fm API calls        | 30 req / 60s |
-
-### Security
-
-Both TMDB and Last.fm clients are hardened with:
-
-- Path validation (no directory traversal)
-- Parameter allowlisting to prevent API key override
-- Hostname pinning
-- Max parameter length enforcement (200 chars)
+All API-facing functions are rate-limited via Upstash Redis with sliding windows
 
 ## Project Structure
 
@@ -119,52 +102,6 @@ lib/
 └── utils.ts                # cn(), normalizeSearch(), tokenizeSearch()
 ```
 
-## Getting Started
-
-### Prerequisites
-
-- [Node.js](https://nodejs.org/) 18+
-- [pnpm](https://pnpm.io/)
-
-### Environment Variables
-
-Create a `.env.local` file in the project root:
-
-```env
-TMDB_API_KEY=your_tmdb_api_key
-TMDB_URL=https://api.themoviedb.org/3
-LASTFM_API_KEY=your_lastfm_api_key
-UPSTASH_REDIS_REST_URL=your_upstash_redis_url
-UPSTASH_REDIS_REST_TOKEN=your_upstash_redis_token
-GOOGLE_GENERATIVE_AI_API_KEY=your_gemini_api_key
-```
-
-You can obtain these from:
-
-- **TMDB** — [developer.themoviedb.org](https://developer.themoviedb.org/)
-- **Last.fm** — [last.fm/api](https://www.last.fm/api)
-- **Upstash** — [upstash.com](https://upstash.com/)
-- **Google AI** — [aistudio.google.com](https://aistudio.google.com/)
-
-### Install & Run
-
-```bash
-pnpm install
-pnpm dev
-```
-
-Open [http://localhost:3000](http://localhost:3000).
-
-### Other Scripts
-
-```bash
-pnpm build          # Production build
-pnpm start          # Start production server
-pnpm lint           # Run ESLint
-pnpm typecheck      # Run TypeScript type checking
-pnpm format         # Format with Prettier
-pnpm check          # Run all checks (typecheck + lint + format)
-```
 
 ## Deploy
 
