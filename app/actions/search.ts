@@ -8,7 +8,6 @@ import {
   sanitize,
   fetchByName,
   fetchByGenre,
-  fetchByGenres,
   isKnownGenre,
 } from "@/lib/tmdb";
 import type { MovieResult } from "@/lib/schemas";
@@ -17,6 +16,38 @@ import {
   identifyEntityLimiter,
   checkLimit,
 } from "@/lib/rate-limit";
+
+type IdentifyEntityResult = {
+  canonical_name: string;
+  type: "movie" | "tv_series";
+  confidence: "high" | "medium" | "low";
+};
+
+function parseIdentifyEntityOutput(rawText: string): IdentifyEntityResult {
+  const cleaned = rawText.replace(/```json|```/g, "").trim();
+  const jsonBlock = cleaned.match(/\{[\s\S]*\}/)?.[0] ?? cleaned;
+  const parsed = JSON.parse(jsonBlock) as Partial<IdentifyEntityResult>;
+
+  if (!parsed.canonical_name || typeof parsed.canonical_name !== "string") {
+    throw new Error("identifyEntity: missing canonical_name");
+  }
+  if (parsed.type !== "movie" && parsed.type !== "tv_series") {
+    throw new Error("identifyEntity: invalid type");
+  }
+  if (
+    parsed.confidence !== "high" &&
+    parsed.confidence !== "medium" &&
+    parsed.confidence !== "low"
+  ) {
+    throw new Error("identifyEntity: invalid confidence");
+  }
+
+  return {
+    canonical_name: parsed.canonical_name.trim(),
+    type: parsed.type,
+    confidence: parsed.confidence,
+  };
+}
 
 // ── AI identifies vague input via Google Search ──────────────────────────────
 async function identifyEntity(userInput: string) {
@@ -27,20 +58,29 @@ async function identifyEntity(userInput: string) {
 
   const { text } = await generateText({
     model: google("gemini-2.5-flash"),
-    prompt: `The user typed: "${userInput}"
-Identify the movie or TV show they mean.
-Respond ONLY with valid JSON, no markdown:
+    prompt: `Task: map an informal user description to ONE best-known movie or TV series.
+
+Hard rules:
+- Return EXACTLY one JSON object and nothing else.
+- No markdown, no code fences, no prose, no explanation.
+- Keys must be exactly: canonical_name, type, confidence.
+- type must be exactly "movie" or "tv_series".
+- confidence must be exactly "high", "medium", or "low".
+- canonical_name must be the most recognized English title.
+- If uncertain, still provide the single best guess with lower confidence.
+
+The user is trying to find a movie or TV show using an informal, cryptic, or slang description. Do NOT interpret words literally. Infer the most likely title from plot, characters, themes, or cultural references.
+
+User description: "${userInput}"
+
+Use Google Search if needed.
+Output format:
 { "canonical_name": "...", "type": "movie" | "tv_series", "confidence": "high" | "medium" | "low" }`,
     tools: { google_search: google.tools.googleSearch({}) },
-    maxOutputTokens: 200,
+    maxOutputTokens: 300,
   });
 
-  const clean = text.replace(/```json|```/g, "").trim();
-  return JSON.parse(clean) as {
-    canonical_name: string;
-    type: "movie" | "tv_series";
-    confidence: string;
-  };
+  return parseIdentifyEntityOutput(text);
 }
 
 // ── Main server action ────────────────────────────────────────────────────────
@@ -62,7 +102,8 @@ export async function aiSearch(query: string, tags: string[] = []) {
   let resolvedMediaType: "movie" | "tv_series" = "movie";
   let inputClass: "genre" | "exact_name" | "vague" | null = null;
 
-  if (tags.length === 0 && trimmed) {
+  // Any non-empty query takes precedence over tags.
+  if (trimmed) {
     inputClass = await classifyInput(trimmed);
     if (inputClass === "vague") {
       const entity = await identifyEntity(trimmed);
@@ -78,27 +119,7 @@ export async function aiSearch(query: string, tags: string[] = []) {
     try {
       let movies: MovieResult[] = [];
 
-      if (tags.length > 0) {
-        // Split tags into genre tags and entity-name tags
-        const genreTags = tags.filter((t) => isKnownGenre(t));
-        const nameTags = tags.filter((t) => !isKnownGenre(t));
-
-        // Fetch similar movies for entity-name tags
-        for (const name of nameTags) {
-          const data = await fetchByName(name);
-          if (data) {
-            movies.push(...(data.entity ? [data.entity, ...data.results] : data.results));
-          }
-        }
-
-        // Fetch by genre combination
-        if (genreTags.length > 0) {
-          const data = await fetchByGenres(genreTags);
-          if (data) {
-            movies.push(...data.results);
-          }
-        }
-      } else if (trimmed) {
+      if (trimmed) {
         if (inputClass === "genre") {
           const data = await fetchByGenre(trimmed);
           if (data) {
@@ -114,6 +135,15 @@ export async function aiSearch(query: string, tags: string[] = []) {
           if (data) {
             movies = data.entity ? [data.entity, ...data.results] : data.results;
           }
+        }
+      } else if (tags.length > 0) {
+        // Treat tags as a single genre filter (UI provides a genre filter).
+        // Ignore non-genre tags here — name-based lookups come from the
+        // search input / AI flow, not from tags.
+        const genreTag = tags.find((t) => isKnownGenre(t));
+        if (genreTag) {
+          const data = await fetchByGenre(genreTag);
+          if (data) movies = data.results;
         }
       }
 

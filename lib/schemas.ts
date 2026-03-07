@@ -16,6 +16,23 @@ export const AiSearchResultSchema = z.object({
 export type MovieResult = z.infer<typeof MovieResultSchema>;
 export type AiSearchResult = z.infer<typeof AiSearchResultSchema>;
 
+export const IdentifiedEntitySchema = z.object({
+  canonical_name: z
+    .string()
+    .min(1)
+    .describe("Best-known canonical title for the matched movie or TV series."),
+  type: z
+    .enum(["movie", "tv_series"])
+    .describe("Use 'movie' for films or 'tv_series' for episodic shows."),
+  confidence: z
+    .enum(["high", "medium", "low"])
+    .describe("Confidence that the user description maps to the canonical title."),
+}).describe(
+  "Map a vague user description to one canonical movie or TV series entity.",
+);
+
+export type IdentifiedEntity = z.infer<typeof IdentifiedEntitySchema>;
+
 // ── Music types ───────────────────────────────────────────────────────────────
 export const MusicResultSchema = z.object({
   name: z.string(),

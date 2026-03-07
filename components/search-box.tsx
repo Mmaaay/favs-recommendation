@@ -1,8 +1,30 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Search, Sparkles } from "lucide-react";
+import { Search, Sparkles, SlidersHorizontal } from "lucide-react";
+import { useMemo, useState } from "react";
 import { Input } from "@/components/ui/input";
+
+const GENRE_OPTIONS = [
+  "action",
+  "adventure",
+  "animation",
+  "comedy",
+  "crime",
+  "documentary",
+  "drama",
+  "family",
+  "fantasy",
+  "history",
+  "horror",
+  "music",
+  "mystery",
+  "romance",
+  "sci-fi",
+  "thriller",
+  "war",
+  "western",
+] as const;
 
 export default function SearchBox({
   query,
@@ -23,7 +45,13 @@ export default function SearchBox({
   onGoogleSearch: (q: string) => void;
   isSearching: boolean;
 }) {
+  const [showGenrePicker, setShowGenrePicker] = useState(false);
   const isFocused = query.length > 0 || tags.length > 0;
+  const activeGenre = tags[0] ?? null;
+  const genreButtonLabel = useMemo(
+    () => (activeGenre ? `Genre: ${activeGenre}` : "Pick Genre"),
+    [activeGenre],
+  );
 
   function onKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === "Enter") {
@@ -61,6 +89,56 @@ export default function SearchBox({
           onKeyDown={onKeyDown}
           className="h-14 border-0 bg-transparent text-base text-white placeholder:text-white/30 focus-visible:ring-0 focus-visible:border-0 shadow-none"
         />
+      </div>
+
+      {/* Genre picker */}
+      <div className="mt-3">
+        <button
+          type="button"
+          onClick={() => setShowGenrePicker((prev) => !prev)}
+          className="mx-auto flex h-9 items-center gap-2 rounded-lg border border-white/15 bg-white/5 px-3.5 text-xs font-semibold uppercase tracking-wide text-white/80 transition-colors hover:border-white/30 hover:bg-white/10 hover:text-white"
+        >
+          <SlidersHorizontal className="h-3.5 w-3.5" />
+          {genreButtonLabel}
+        </button>
+
+        {showGenrePicker && (
+          <motion.div
+            className="mt-3 rounded-xl border border-white/12 bg-black/35 p-3"
+            initial={{ opacity: 0, y: -6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.2 }}
+          >
+            <p className="mb-2 text-center text-[11px] uppercase tracking-wide text-white/40">
+              Genre Filter
+            </p>
+            <div className="flex flex-wrap justify-center gap-2">
+              {GENRE_OPTIONS.map((genre) => {
+                const isSelected = activeGenre === genre;
+                return (
+                  <button
+                    key={genre}
+                    type="button"
+                    onClick={() => {
+                      if (isSelected) {
+                        removeTag(genre);
+                      } else {
+                        addTag(genre);
+                      }
+                    }}
+                    className={`rounded-full border px-3 py-1 text-xs font-medium capitalize transition-colors ${
+                      isSelected
+                        ? "border-netflix-red/70 bg-netflix-red/20 text-white"
+                        : "border-white/15 bg-white/5 text-white/70 hover:border-white/30 hover:bg-white/10 hover:text-white"
+                    }`}
+                  >
+                    {genre}
+                  </button>
+                );
+              })}
+            </div>
+          </motion.div>
+        )}
       </div>
 
       {/* Search buttons — show when typing or tags exist */}

@@ -35,7 +35,7 @@ export default function Home() {
   function addTag(raw: string) {
     const t = normalizeSearch(raw);
     if (!t) return;
-    setTags((prev) => (prev.includes(t) ? prev : [...prev, t]));
+    setTags([t]);
   }
 
   function removeTag(tag: string) {
@@ -48,11 +48,19 @@ export default function Home() {
 
   const handleGoogleSearch = useCallback(
     async (q: string) => {
+      const hasTypedQuery = q.trim().length > 0;
+      const effectiveTags = hasTypedQuery ? [] : tags;
+
+      // Typed input should override genre tag filtering for this request.
+      if (hasTypedQuery && tags.length > 0) {
+        setTags([]);
+      }
+
       setIsMovieSearching(true);
       setAiMovies([]);
 
       try {
-        const response = await aiSearch(q, tags);
+        const response = await aiSearch(q, effectiveTags);
         if (!response.ok) return;
 
         if (response.entityName) {

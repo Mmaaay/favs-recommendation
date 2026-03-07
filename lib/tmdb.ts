@@ -123,7 +123,7 @@ const ALLOWED_TMDB_PARAM_KEYS = new Set([
   "first_air_date_year",
 ]);
 
-const TMDB_BASE = "https://api.themoviedb.org/3" as const;
+const TMDB_BASE = process.env.TMDB_URL ;
 
 function tmdbUrl(path: string, params: Record<string, string> = {}): string {
   // Validate path: must start with / and contain only safe characters
@@ -189,8 +189,24 @@ function formatItem(r: Record<string, unknown>, mediaType: "movie" | "tv" = "mov
 
 export async function fetchByName(
   name: string,
-  type: "movie" | "tv_series" = "movie",
+  type: "movie" | "tv_series" | "both" = "both",
 ): Promise<{ entity: MovieResult | null; genres: string[]; results: MovieResult[] } | null> {
+  if (type === "both") {
+    const [movieData, tvData] = await Promise.all([
+      fetchByName(name, "movie"),
+      fetchByName(name, "tv_series"),
+    ]);
+    if (!movieData && !tvData) return null;
+    const entities = [movieData?.entity, tvData?.entity].filter((e): e is MovieResult => !!e);
+    const allResults = [...(movieData?.results ?? []), ...(tvData?.results ?? [])];
+    const allGenres = [...new Set([...(movieData?.genres ?? []), ...(tvData?.genres ?? [])])];
+    return {
+      entity: entities[0] ?? null,
+      genres: allGenres,
+      results: shuffle([...entities.slice(1), ...allResults]),
+    };
+  }
+
   const media = type === "tv_series" ? "tv" : "movie";
 
   const searchRes = await tmdbFetch(
@@ -226,8 +242,20 @@ export async function fetchByName(
 
 export async function fetchByGenre(
   genreName: string,
-  type: "movie" | "tv_series" = "movie",
+  type: "movie" | "tv_series" | "both" = "both",
 ): Promise<{ genres: string[]; results: MovieResult[] } | null> {
+  if (type === "both") {
+    const [movieData, tvData] = await Promise.all([
+      fetchByGenre(genreName, "movie"),
+      fetchByGenre(genreName, "tv_series"),
+    ]);
+    if (!movieData && !tvData) return null;
+    return {
+      genres: [genreName],
+      results: shuffle([...(movieData?.results ?? []), ...(tvData?.results ?? [])]),
+    };
+  }
+
   const lower = await sanitize(genreName);
   const media = type === "tv_series" ? "tv" : "movie";
   const genreMap = media === "tv" ? TV_GENRE_MAP : MOVIE_GENRE_MAP;
@@ -251,8 +279,20 @@ export async function fetchByGenre(
 // ── TMDB — by multiple genres (AND logic) ─────────────────────────────────────
 export async function fetchByGenres(
   genreNames: string[],
-  type: "movie" | "tv_series" = "movie",
+  type: "movie" | "tv_series" | "both" = "both",
 ): Promise<{ genres: string[]; results: MovieResult[] } | null> {
+  if (type === "both") {
+    const [movieData, tvData] = await Promise.all([
+      fetchByGenres(genreNames, "movie"),
+      fetchByGenres(genreNames, "tv_series"),
+    ]);
+    if (!movieData && !tvData) return null;
+    return {
+      genres: genreNames,
+      results: shuffle([...(movieData?.results ?? []), ...(tvData?.results ?? [])]),
+    };
+  }
+
   const media = type === "tv_series" ? "tv" : "movie";
   const genreMap = media === "tv" ? TV_GENRE_MAP : MOVIE_GENRE_MAP;
 
