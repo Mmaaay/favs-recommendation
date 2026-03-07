@@ -47,10 +47,10 @@ export default function SearchBox({
 }) {
   const [showGenrePicker, setShowGenrePicker] = useState(false);
   const isFocused = query.length > 0 || tags.length > 0;
-  const activeGenre = tags[0] ?? null;
+  const selectedCount = tags.length;
   const genreButtonLabel = useMemo(
-    () => (activeGenre ? `Genre: ${activeGenre}` : "Pick Genre"),
-    [activeGenre],
+    () => (selectedCount > 0 ? `Genres: ${selectedCount}` : "Pick Genres"),
+    [selectedCount],
   );
 
   function onKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
@@ -114,7 +114,7 @@ export default function SearchBox({
             </p>
             <div className="flex flex-wrap justify-center gap-2">
               {GENRE_OPTIONS.map((genre) => {
-                const isSelected = activeGenre === genre;
+                const isSelected = tags.includes(genre);
                 return (
                   <button
                     key={genre}

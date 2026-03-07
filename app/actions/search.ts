@@ -8,6 +8,7 @@ import {
   sanitize,
   fetchByName,
   fetchByGenre,
+  fetchByGenres,
   isKnownGenre,
 } from "@/lib/tmdb";
 import type { MovieResult } from "@/lib/schemas";
@@ -137,12 +138,9 @@ export async function aiSearch(query: string, tags: string[] = []) {
           }
         }
       } else if (tags.length > 0) {
-        // Treat tags as a single genre filter (UI provides a genre filter).
-        // Ignore non-genre tags here — name-based lookups come from the
-        // search input / AI flow, not from tags.
-        const genreTag = tags.find((t) => isKnownGenre(t));
-        if (genreTag) {
-          const data = await fetchByGenre(genreTag);
+        const genreTags = tags.filter((t) => isKnownGenre(t));
+        if (genreTags.length > 0) {
+          const data = await fetchByGenres(genreTags);
           if (data) movies = data.results;
         }
       }

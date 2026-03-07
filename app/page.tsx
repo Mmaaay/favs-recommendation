@@ -17,6 +17,9 @@ type Tab = "movies" | "music";
 type TaggedMusic = MusicResult & { type?: "entity" | "similar" | "artist_pick" };
 
 export default function Home() {
+  const SEARCH_DEBOUNCE_MS = 220;
+  const SEARCH_SPAM_GUARD_MS = 700;
+
   const [activeTab, setActiveTab] = useState<Tab>("movies");
 
   // ── Movie state ─────────────────────────────────────────────────────────────
@@ -25,6 +28,8 @@ export default function Home() {
   const [isMovieSearching, setIsMovieSearching] = useState(false);
   const [aiMovies, setAiMovies] = useState<MovieResult[]>([]);
   const skipAutoSearch = useRef(false);
+  const movieSearchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastMovieSearchAtRef = useRef(0);
 
   // ── Music state ─────────────────────────────────────────────────────────────
   const [musicQuery, setMusicQuery] = useState("");
@@ -32,27 +37,27 @@ export default function Home() {
   const [musicResults, setMusicResults] = useState<TaggedMusic[]>([]);
 
   // ── Movie helpers ───────────────────────────────────────────────────────────
-  function addTag(raw: string) {
+  const addTag = useCallback((raw: string) => {
     const t = normalizeSearch(raw);
     if (!t) return;
-    setTags([t]);
-  }
+    setTags((prev) => (prev.includes(t) ? prev : [...prev, t]));
+  }, []);
 
-  function removeTag(tag: string) {
+  const removeTag = useCallback((tag: string) => {
     setTags((prev) => prev.filter((p) => p !== tag));
-  }
+  }, []);
 
   function handleLocalSearch(q: string) {
     console.log("[Local Search]", q);
   }
 
-  const handleGoogleSearch = useCallback(
-    async (q: string) => {
+  const runMovieSearch = useCallback(
+    async (q: string, incomingTags: string[]) => {
       const hasTypedQuery = q.trim().length > 0;
-      const effectiveTags = hasTypedQuery ? [] : tags;
+      const effectiveTags = hasTypedQuery ? [] : incomingTags;
 
       // Typed input should override genre tag filtering for this request.
-      if (hasTypedQuery && tags.length > 0) {
+      if (hasTypedQuery && incomingTags.length > 0) {
         setTags([]);
       }
 
@@ -83,8 +88,35 @@ export default function Home() {
         setIsMovieSearching(false);
       }
     },
-    [tags],
+    [addTag],
   );
+
+  const handleGoogleSearch = useCallback(
+    (q: string) => {
+      if (movieSearchDebounceRef.current) {
+        clearTimeout(movieSearchDebounceRef.current);
+      }
+
+      movieSearchDebounceRef.current = setTimeout(() => {
+        const now = Date.now();
+        if (now - lastMovieSearchAtRef.current < SEARCH_SPAM_GUARD_MS) {
+          return;
+        }
+
+        lastMovieSearchAtRef.current = now;
+        void runMovieSearch(q, tags);
+      }, SEARCH_DEBOUNCE_MS);
+    },
+    [runMovieSearch, tags],
+  );
+
+  useEffect(() => {
+    return () => {
+      if (movieSearchDebounceRef.current) {
+        clearTimeout(movieSearchDebounceRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (skipAutoSearch.current) {
@@ -387,7 +419,7 @@ function MusicSearchBox({
         />
         <input
           type="text"
-          placeholder='Search a song, e.g. "no one like you live"...'
+          placeholder='Search a song, e.g. "Living on a Prayer"'
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={onKeyDown}
