@@ -106,12 +106,55 @@ function shuffle<T>(arr: T[]): T[] {
 }
 
 // ── TMDB helpers ──────────────────────────────────────────────────────────────
-const TMDB_BASE = "https://api.themoviedb.org/3";
+
+// 1. API key — validated at module load, never falls back to ""
+if (!process.env.TMDB_API_KEY) throw new Error("TMDB_API_KEY is not set");
+const TMDB_API_KEY = process.env.TMDB_API_KEY as string;
+
+// 2. Allowlist of caller-supplied query-param keys
+const ALLOWED_TMDB_PARAM_KEYS = new Set([
+  "query",
+  "with_genres",
+  "sort_by",
+  "page",
+  "include_adult",
+  "include_video",
+  "primary_release_year",
+  "first_air_date_year",
+]);
+
+const TMDB_BASE = "https://api.themoviedb.org/3" as const;
 
 function tmdbUrl(path: string, params: Record<string, string> = {}): string {
-  const key = process.env.TMDB_API_KEY ?? "";
-  const sp = new URLSearchParams({ api_key: key, language: "en-US", ...params });
-  return `${TMDB_BASE}${path}?${sp.toString()}`;
+  // Validate path: must start with / and contain only safe characters
+  if (!/^\/[\w\-/]+$/.test(path))
+    throw new Error(`Invalid TMDB path: "${path}"`);
+
+  // 2. Strip any key not in the allowlist (prevents api_key/language override)
+  const sanitized = Object.fromEntries(
+    Object.entries(params).filter(([k]) => ALLOWED_TMDB_PARAM_KEYS.has(k)),
+  );
+
+  // 3. Validate values: max 200 chars, safe characters only
+  for (const [k, v] of Object.entries(sanitized)) {
+    if (v.length > 200) throw new Error(`Param "${k}" exceeds maximum length`);
+    if (!/^[\w\s\-.,'&()]+$/u.test(v))
+      throw new Error(`Param "${k}" contains invalid characters`);
+  }
+
+  // api_key and language are set after the sanitized spread so they cannot be overridden
+  const sp = new URLSearchParams({
+    ...sanitized,
+    api_key: TMDB_API_KEY,
+    language: "en-US",
+  });
+
+  // 4. Pin hostname — ensure nothing tampered with the base URL
+  const url = new URL(`${TMDB_BASE}${path}?${sp.toString()}`);
+  if (url.hostname !== "api.themoviedb.org")
+    throw new Error("TMDB URL integrity check failed");
+
+  return url.toString();
 }
 
 // ── Rate-limited TMDB fetch wrapper ───────────────────────────────────────────

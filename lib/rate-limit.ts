@@ -29,6 +29,20 @@ export const tmdbLimiter = new Ratelimit({
   prefix: "ratelimit:tmdb",
 });
 
+/** Music search action: 10 per 60s (shares same Redis) */
+export const musicSearchLimiter = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(10, "60 s"),
+  prefix: "ratelimit:musicSearch",
+});
+
+/** Last.fm API calls: 30 per 60s */
+export const lastfmLimiter = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(30, "60 s"),
+  prefix: "ratelimit:lastfm",
+});
+
 export async function checkLimit(
   limiter: Ratelimit,
   identifier: string = "global",
