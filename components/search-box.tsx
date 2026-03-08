@@ -50,8 +50,6 @@ export default function SearchBox({
   isSearching: boolean;
   contentType: "both" | "movie" | "tv_series";
   setContentType: (value: "both" | "movie" | "tv_series") => void;
-  durationFilter: "any" | "short" | "medium" | "long";
-  setDurationFilter: (value: "any" | "short" | "medium" | "long") => void;
 }) {
   const [showGenrePicker, setShowGenrePicker] = useState(false);
   const isFocused = query.length > 0 || tags.length > 0;
@@ -119,35 +117,6 @@ export default function SearchBox({
                     )
                   }
                   className={`rounded-md px-3 py-1.5 font-semibold transition-colors ${
-                    selected
-                      ? "bg-netflix-red text-white"
-                      : "text-white/60 hover:bg-white/10 hover:text-white"
-                  }`}
-                >
-                  {option.label}
-                </button>
-              );
-            })}
-          </div>
-
-          <div className="flex items-center rounded-lg border border-white/15 bg-white/5 p-1 text-xs">
-            {[
-              { label: "Any Length", value: "any" },
-              { label: "Short", value: "short" },
-              { label: "Medium", value: "medium" },
-              { label: "Long", value: "long" },
-            ].map((option) => {
-              const selected = durationFilter === option.value;
-              return (
-                <button
-                  key={option.value}
-                  type="button"
-                  onClick={() =>
-                    setDurationFilter(
-                      option.value as "any" | "short" | "medium" | "long",
-                    )
-                  }
-                  className={`rounded-md px-2.5 py-1.5 font-semibold transition-colors ${
                     selected
                       ? "bg-netflix-red text-white"
                       : "text-white/60 hover:bg-white/10 hover:text-white"

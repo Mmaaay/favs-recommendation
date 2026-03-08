@@ -160,7 +160,10 @@ export async function aiSearch(
       } else if (tags.length > 0) {
         const genreTags = tags.filter((t) => isKnownGenre(t));
         if (genreTags.length > 0) {
-          const data = await fetchByGenres(genreTags, contentType);
+          const data =
+            genreTags.length === 1
+              ? await fetchByGenre(genreTags[0], contentType)
+              : await fetchByGenres(genreTags, contentType);
           if (data) movies = data.results;
         }
       }

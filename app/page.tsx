@@ -10,14 +10,13 @@ import type { MovieResult, MusicResult } from "@/lib/schemas";
 import { normalizeSearch } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import { Film, Music } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { readStreamableValue } from "@ai-sdk/rsc";
 import Image from "next/image";
 
 type Tab = "movies" | "music";
 type TaggedMusic = MusicResult & { type?: "entity" | "similar" };
 type ContentTypeFilter = "both" | "movie" | "tv_series";
-type DurationFilter = "any" | "short" | "medium" | "long";
 
 function shuffleArray<T>(items: T[]): T[] {
   const copy = [...items];
@@ -26,20 +25,6 @@ function shuffleArray<T>(items: T[]): T[] {
     [copy[i], copy[j]] = [copy[j], copy[i]];
   }
   return copy;
-}
-
-function matchesDurationFilter(
-  movie: MovieResult,
-  filter: DurationFilter,
-): boolean {
-  if (filter === "any") return true;
-  if (movie.mediaType !== "tv_series") return true;
-  const episodes = movie.episodeCount;
-  if (typeof episodes !== "number") return true;
-
-  if (filter === "short") return episodes <= 16;
-  if (filter === "medium") return episodes >= 17 && episodes <= 60;
-  return episodes > 60;
 }
 
 export default function Home() {
@@ -56,12 +41,14 @@ export default function Home() {
   const [carouselMovies, setCarouselMovies] = useState<MovieResult[]>([]);
   const [hasMovieSearched, setHasMovieSearched] = useState(false);
   const [contentType, setContentType] = useState<ContentTypeFilter>("both");
-  const [durationFilter, setDurationFilter] = useState<DurationFilter>("any");
   const skipAutoSearch = useRef(false);
   const movieSearchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
+  const genreDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastMovieSearchAtRef = useRef(0);
+  // Cache keyed by sorted combo: "action,animation:both" → MovieResult[]
+  const genreCacheRef = useRef<Map<string, MovieResult[]>>(new Map());
 
   // ── Music state ─────────────────────────────────────────────────────────────
   const [musicQuery, setMusicQuery] = useState("");
@@ -85,14 +72,9 @@ export default function Home() {
   }
 
   const runMovieSearch = useCallback(
-    async (q: string, incomingTags: string[]) => {
-      const hasTypedQuery = q.trim().length > 0;
-      const effectiveTags = hasTypedQuery ? [] : incomingTags;
-
-      // Typed input should override genre tag filtering for this request.
-      if (hasTypedQuery && incomingTags.length > 0) {
-        setTags([]);
-      }
+    async (q: string) => {
+      // Clear genre tags when a text query takes over
+      setTags([]);
 
       setIsMovieSearching(true);
       setAiMovies([]);
@@ -100,7 +82,7 @@ export default function Home() {
       setHasMovieSearched(false);
 
       try {
-        const response = await aiSearch(q, effectiveTags, contentType);
+        const response = await aiSearch(q, [], contentType);
         if (!response.ok) return;
 
         if (response.entityName) {
@@ -115,6 +97,9 @@ export default function Home() {
           try {
             const movie = JSON.parse(value) as MovieResult;
             setAiMovies((prev) => [...prev, movie]);
+            setCarouselMovies((prev) =>
+              prev.length < 10 ? [...prev, movie] : prev,
+            );
           } catch {
             /* skip unparseable */
           }
@@ -122,10 +107,6 @@ export default function Home() {
       } finally {
         setIsMovieSearching(false);
         setHasMovieSearched(true);
-        setAiMovies((final) => {
-          setCarouselMovies(shuffleArray(final).slice(0, 10));
-          return final;
-        });
       }
     },
     [addTag, contentType],
@@ -144,10 +125,67 @@ export default function Home() {
         }
 
         lastMovieSearchAtRef.current = now;
-        void runMovieSearch(q, tags);
+        void runMovieSearch(q);
       }, SEARCH_DEBOUNCE_MS);
     },
-    [runMovieSearch, tags],
+    [runMovieSearch],
+  );
+
+  // ── Genre cache search ──────────────────────────────────────────────────────
+  const runGenreSearch = useCallback(
+    async (selectedTags: string[]) => {
+      if (selectedTags.length === 0) {
+        setAiMovies([]);
+        setCarouselMovies([]);
+        setHasMovieSearched(false);
+        return;
+      }
+
+      // Combo key: sorted genres + contentType — one TMDB AND query per unique combination
+      const cacheKey =
+        [...selectedTags].sort().join(",") + `:${contentType}`;
+
+      // Instant path: already fetched this exact combination
+      if (genreCacheRef.current.has(cacheKey)) {
+        const cached = genreCacheRef.current.get(cacheKey)!;
+        setAiMovies(cached);
+        setCarouselMovies(shuffleArray(cached).slice(0, 10));
+        setHasMovieSearched(true);
+        return;
+      }
+
+      setIsMovieSearching(true);
+      setAiMovies([]);
+      setCarouselMovies([]);
+      setHasMovieSearched(false);
+
+      try {
+        const response = await aiSearch("", selectedTags, contentType);
+        const movies: MovieResult[] = [];
+        if (response.ok && response.movieStream) {
+          for await (const value of readStreamableValue(
+            response.movieStream,
+          )) {
+            if (!value) continue;
+            try {
+              const movie = JSON.parse(value) as MovieResult;
+              movies.push(movie);
+              setAiMovies((prev) => [...prev, movie]);
+              setCarouselMovies((prev) =>
+                prev.length < 10 ? [...prev, movie] : prev,
+              );
+            } catch {
+              /* skip */
+            }
+          }
+        }
+        genreCacheRef.current.set(cacheKey, movies);
+        setHasMovieSearched(true);
+      } finally {
+        setIsMovieSearching(false);
+      }
+    },
+    [contentType],
   );
 
   useEffect(() => {
@@ -155,23 +193,38 @@ export default function Home() {
       if (movieSearchDebounceRef.current) {
         clearTimeout(movieSearchDebounceRef.current);
       }
+      if (genreDebounceRef.current) {
+        clearTimeout(genreDebounceRef.current);
+      }
     };
   }, []);
+
+  const GENRE_DEBOUNCE_MS = 600;
 
   useEffect(() => {
     if (skipAutoSearch.current) {
       skipAutoSearch.current = false;
       return;
     }
+    if (genreDebounceRef.current) clearTimeout(genreDebounceRef.current);
     if (tags.length > 0) {
-      handleGoogleSearch(movieQuery);
+      genreDebounceRef.current = setTimeout(() => {
+        void runGenreSearch(tags);
+      }, GENRE_DEBOUNCE_MS);
+    } else {
+      setAiMovies([]);
+      setCarouselMovies([]);
+      setHasMovieSearched(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tags]);
 
   useEffect(() => {
-    if (!movieQuery.trim() && tags.length === 0) return;
-    handleGoogleSearch(movieQuery);
+    if (tags.length > 0) {
+      void runGenreSearch(tags);
+    } else if (movieQuery.trim()) {
+      handleGoogleSearch(movieQuery);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [contentType]);
 
@@ -210,15 +263,8 @@ export default function Home() {
 
   // ── Derived ─────────────────────────────────────────────────────────────────
   const isMovies = activeTab === "movies";
-  const filteredMovies = useMemo(
-    () =>
-      aiMovies.filter((movie) => matchesDurationFilter(movie, durationFilter)),
-    [aiMovies, durationFilter],
-  );
-  const filteredCarousel = useMemo(
-    () => carouselMovies.filter((m) => matchesDurationFilter(m, durationFilter)),
-    [carouselMovies, durationFilter],
-  );
+  const filteredMovies = aiMovies;
+  const filteredCarousel = carouselMovies;
   const tabTitles: Record<
     Tab,
     { accent: string; rest: string; subtitle: string }
@@ -325,8 +371,6 @@ export default function Home() {
                 isSearching={isMovieSearching}
                 contentType={contentType}
                 setContentType={setContentType}
-                durationFilter={durationFilter}
-                setDurationFilter={setDurationFilter}
               />
 
               {/* Grid cards */}

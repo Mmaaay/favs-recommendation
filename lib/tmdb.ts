@@ -345,11 +345,6 @@ function formatItem(
   const genreIds = (r.genre_ids ?? []) as number[];
   const genreMap = mediaType === "tv" ? TV_GENRE_BY_ID : MOVIE_GENRE_BY_ID;
   const genres = genreIds.map((id) => genreMap[id]).filter(Boolean);
-  const episodeCount =
-    mediaType === "tv" && typeof r.number_of_episodes === "number"
-      ? r.number_of_episodes
-      : null;
-
   return {
     id,
     title,
@@ -359,41 +354,7 @@ function formatItem(
     genres,
     description: overview,
     mediaType: mediaType === "tv" ? "tv_series" : "movie",
-    episodeCount,
   };
-}
-
-async function enrichTvEpisodeCounts(
-  items: MovieResult[],
-): Promise<MovieResult[]> {
-  const tvItems = items.filter(
-    (item) => item.mediaType === "tv_series" && typeof item.id === "number",
-  );
-  if (tvItems.length === 0) return items;
-
-  const episodeById = new Map<number, number | null>();
-  await Promise.all(
-    tvItems.map(async (item) => {
-      const detail = (await tmdbFetch(
-        tmdbUrl(`/tv/${item.id as number}`),
-      )) as Record<string, unknown>;
-      episodeById.set(
-        item.id as number,
-        typeof detail.number_of_episodes === "number"
-          ? detail.number_of_episodes
-          : null,
-      );
-    }),
-  );
-
-  return items.map((item) => {
-    if (item.mediaType !== "tv_series" || typeof item.id !== "number")
-      return item;
-    return {
-      ...item,
-      episodeCount: episodeById.get(item.id) ?? item.episodeCount ?? null,
-    };
-  });
 }
 
 export async function fetchByName(
@@ -469,10 +430,6 @@ export async function fetchByName(
     genres,
     description: (detail.overview ?? "") as string,
     mediaType: type,
-    episodeCount:
-      type === "tv_series" && typeof detail.number_of_episodes === "number"
-        ? detail.number_of_episodes
-        : null,
   };
 
   const similarItems: MovieResult[] = (
@@ -481,10 +438,7 @@ export async function fetchByName(
     .slice(0, RECOMMENDATION_LIMIT)
     .map((r) => formatItem(r, media));
 
-  const results =
-    media === "tv" ? await enrichTvEpisodeCounts(similarItems) : similarItems;
-
-  return { entity: entityCard, genres, results: shuffle(results) };
+  return { entity: entityCard, genres, results: shuffle(similarItems) };
 }
 
 export async function fetchByGenre(
@@ -525,10 +479,7 @@ export async function fetchByGenre(
     .slice(0, DISCOVER_LIMIT)
     .map((r: Record<string, unknown>) => formatItem(r, media));
 
-  const results =
-    media === "tv" ? await enrichTvEpisodeCounts(baseResults) : baseResults;
-
-  return { genres: [genreName], results: shuffle(results) };
+  return { genres: [genreName], results: shuffle(baseResults) };
 }
 
 // ── TMDB — by multiple genres (AND logic) ─────────────────────────────────────
@@ -579,8 +530,5 @@ export async function fetchByGenres(
     .slice(0, DISCOVER_LIMIT)
     .map((r: Record<string, unknown>) => formatItem(r, media));
 
-  const results =
-    media === "tv" ? await enrichTvEpisodeCounts(baseResults) : baseResults;
-
-  return { genres: genreNames, results: shuffle(results) };
+  return { genres: genreNames, results: shuffle(baseResults) };
 }

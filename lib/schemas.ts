@@ -9,7 +9,6 @@ export const MovieResultSchema = z.object({
   genres: z.array(z.string()),
   description: z.string(),
   mediaType: z.enum(["movie", "tv_series"]),
-  episodeCount: z.number().nullable().optional(),
 });
 
 export const AiSearchResultSchema = z.object({
