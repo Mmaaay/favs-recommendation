@@ -37,8 +37,7 @@ export default function SearchBox({
   isSearching,
   contentType,
   setContentType,
-  durationFilter,
-  setDurationFilter,
+
 }: {
   query: string;
   setQuery: (q: string) => void;
